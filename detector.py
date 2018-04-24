@@ -4,6 +4,7 @@
 Created on Tue Apr 24 17:50:19 2018
 
 @author: serkan
+@coauthor: yalim
 """
 
 import os
@@ -12,7 +13,7 @@ import numpy as np
 from util import generate_label_map, annotate_image
 import argparse
         
-def read_model(folder_name, model_file=None, weight_file=None, label_file=None):  
+def read_model(folder_name, model_file="graph.pbtxt", weight_file="frozen_inference_graph.pb", label_file="labelmap.pbtxt"):
     '''
       Reads model folder and returns a detector object
       
@@ -36,15 +37,12 @@ def read_model(folder_name, model_file=None, weight_file=None, label_file=None):
     '''
     
     # Set default parameters
-    if model_file is None:
-        model_file = os.path.join(folder_name, "graph.pbtxt")
-    
-    if weight_file is None:
-        weight_file = os.path.join(folder_name, "frozen_inference_graph.pb")
-    
-    if label_file is None:
-        label_file = os.path.join(folder_name, "labelmap.pbtxt")
-        
+    model_file = os.path.join(folder_name, model_file)
+
+    weight_file = os.path.join(folder_name, weight_file)
+
+    label_file = os.path.join(folder_name, label_file)
+
     # Load model file
     label_map = generate_label_map(label_file)
     model = cv2.dnn.readNetFromTensorflow(weight_file, model_file)
@@ -123,7 +121,7 @@ if __name__ == "__main__":
     
     # Parse inputs
     parser = argparse.ArgumentParser(
-            description="Runs mobilenet",
+            description="Runs model",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
             )
     parser.add_argument('-s','--source', help="Source of the video", default='0')
@@ -144,23 +142,23 @@ if __name__ == "__main__":
     
     # Initialize video capture
     cap = cv2.VideoCapture(source)
-    
-    print('Press esc or Q to stop')
-    while True:
+
+    while cap.isOpened():
         success, image = cap.read() # Get image from video capture
-        
+
         # Bail out if we cannot read webcam
         if success == False:
             print('Cannot read image from source')
             break
-        
+
         # For each detection
         for detection in detect(model, image, label_map = label_map, min_score=args.confidence):
             annotation_label = '{} {:.2f}%'.format(detection['label_name'], detection['score'] * 100)
             annotate_image(image, detection['window'], label=annotation_label)
-            
-        cv2.imshow(WINDOW_NAME, image)
-        
+
+        print('Press esc or Q to stop')
+
+        cv2.imshow(WINDOW_NAME,image)
         key = cv2.waitKey(5)
         
         # Bail out if q / Q / ESC is pressed
@@ -170,7 +168,5 @@ if __name__ == "__main__":
         # Bail out if window is closed
         if cv2.getWindowProperty(WINDOW_NAME, 0) < 0:
             break
-        
-    
-    
-    
+
+    cap.release()
