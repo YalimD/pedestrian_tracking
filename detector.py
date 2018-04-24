@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 from util import generate_label_map, annotate_image
 import argparse
+from datetime import datetime 
         
 def read_model(folder_name, model_file="graph.pbtxt", weight_file="frozen_inference_graph.pb", label_file="labelmap.pbtxt"):
     '''
@@ -143,7 +144,16 @@ if __name__ == "__main__":
     # Initialize video capture
     cap = cv2.VideoCapture(source)
 
+    prev_time = datetime.now().microsecond
+    mean_fps = 0
     while cap.isOpened():
+        # Time calculation
+        cur_time = datetime.now().microsecond
+        time_elapsed = cur_time - prev_time	# In seconds
+        cur_fps = 1000000.0 / time_elapsed
+        mean_fps = mean_fps * 0.5 + cur_fps * 0.5
+        prev_time = cur_time  
+
         success, image = cap.read() # Get image from video capture
 
         # Bail out if we cannot read webcam

@@ -39,6 +39,7 @@ def annotate_image(image, window, label=""):
     '''
     TOP_HEIGHT = 20
     LABEL_BOTTOM_MARGIN = 5
+    LABEL_HORIZONTAL_MARGIN = 1;
     window_color = (23, 230, 210)
     annotation_color = (23, 230, 210, 100)
     label_color = (255,255,255)
@@ -48,6 +49,8 @@ def annotate_image(image, window, label=""):
     
 
     cv2.rectangle(image, top_left, bot_right, window_color, thickness=2)   
-    cv2.rectangle(image, (top_left[0], top_left[1] - TOP_HEIGHT), (bot_right[0], top_left[1]), annotation_color, -1)
+    cv2.rectangle(image, (top_left[0] - LABEL_HORIZONTAL_MARGIN, top_left[1] - TOP_HEIGHT),
+                         (bot_right[0] + LABEL_HORIZONTAL_MARGIN, top_left[1]),
+                         annotation_color, -1)
     cv2.putText(image, label, (top_left[0], top_left[1] - LABEL_BOTTOM_MARGIN), 
                         cv2.FONT_HERSHEY_DUPLEX, 0.5, label_color,1,cv2.LINE_AA)
