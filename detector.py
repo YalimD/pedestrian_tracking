@@ -166,7 +166,9 @@ if __name__ == "__main__":
             annotation_label = '{} {:.2f}%'.format(detection['label_name'], detection['score'] * 100)
             annotate_image(image, detection['window'], label=annotation_label)
 
-        print('Press esc or Q to stop')
+        #print('Press esc or Q to stop')
+        cv2.putText(image, "FPS: {}".format(mean_fps), (10, 15), 
+                        cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255),1,cv2.LINE_AA)
 
         cv2.imshow(WINDOW_NAME,image)
         key = cv2.waitKey(5)
