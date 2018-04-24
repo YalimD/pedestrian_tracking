@@ -11,6 +11,9 @@ import cv2
 import numpy as np
 
 def generate_label_map(fname):
+    '''
+       Generates label map from protofile 
+    '''
     label_dict = {}
     
     with open(fname) as fp:
@@ -31,6 +34,9 @@ def generate_label_map(fname):
     
 
 def annotate_image(image, window, label=""):
+    '''
+      Generates an annotation on image given window and label
+    '''
     TOP_HEIGHT = 20
     LABEL_BOTTOM_MARGIN = 5
     window_color = (23, 230, 210)

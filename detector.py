@@ -53,7 +53,31 @@ def read_model(folder_name, model_file=None, weight_file=None, label_file=None):
     
 def detect(model, img, label_map=None, input_size=(300, 300), scale=1.0/127.5,
            mean=(127.5, 127.5, 127.5), swapRB=True, crop=False, min_score=0.3):
-    
+    '''
+      Performs detection on image using given model
+        This function is a generator that returns a detection for each step
+
+      Parameters:
+          model: Model object (can be read using read_model function)
+          img: Image to be used in detection
+      Keywords:
+          label_map: Label dictionary
+                     If not provided label ids used instead
+          input_size: Input size of the given model
+          scale: Input scaling for model
+          mean: Input mean for model
+          swapRB: Whether to swap Red and Blue channels in given image
+          crop:  Whether to crop the given image
+          min_score: Minimum confidence value
+      Returns:
+          {
+              'window' : rendering window stored as a 4 tuple (left, top, right, bottom)
+              'label_id' : Id of the label assigned for detection
+              'label_name' : Name of the label assigned for detection (Same as label_id when label_map is not defined)
+              'score' : Confidence score of the detection
+          }
+          
+    '''
     # Set input of the model as given image
     model.setInput(cv2.dnn.blobFromImage(img, scale, input_size, mean, swapRB=swapRB, crop=crop))
     out = model.forward() # Perform forward step and get output 
