@@ -78,7 +78,6 @@ if __name__ == "__main__":
             print('Cannot read image from source')
             break
 
-        #TODO: (3) Test on zoomed in (increased size) image
         foreground_mask = backgroundSubtractor.apply(image, 0.9)
 
         # Now search for pedestrians in each contour in the background subtracted image
@@ -164,10 +163,10 @@ if __name__ == "__main__":
             # Detect the pedestrians
 
 
-        temp_image = cv2.cvtColor(temp_image, cv2.COLOR_BGR2GRAY)
-        image[foreground_mask > 0] = [0,255,0]
-        cv2.imshow(WINDOW_NAME,image)
-        key = cv2.waitKey(5)
+        # temp_image = cv2.cvtColor(temp_image, cv2.COLOR_BGR2GRAY)
+        # image[foreground_mask > 0] = [0,255,0]
+        # cv2.imshow(WINDOW_NAME,image)
+        # key = cv2.waitKey(5)
 
 
     cap.release()
