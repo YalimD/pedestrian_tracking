@@ -10,12 +10,14 @@ __all__ = ['VideoStablizer']
 class LKVideoStabilizer:
     """
     Lucas-Kanade based video stabilizer
+    An explanation: http://concept-script.com/flowpoints/page01.html
     TODO: Documentation
     """
 
     def __init__(self, num_points_to_track=100):
         self.old_pyramid = None
-        self.feature_params = dict(maxCorners=num_points_to_track, qualityLevel=0.01, minDistance=7, blockSize=7)
+        self.feature_params = dict(maxCorners=num_points_to_track, qualityLevel=0.01,
+                                   minDistance=7, blockSize=7)
         self.lk_params = dict(winSize=(15, 15),
                               maxLevel=3,
                               criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))

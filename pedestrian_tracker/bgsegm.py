@@ -68,16 +68,16 @@ class BackgroundSubtractor:
         Parameters
         ----------
         image: array_like
-            Input image
+            Input frame
 
         Returns
         -------
         mask: nd_array
             Foreground-Background mask matrix. In mask matrix a value is 255 if it is a foreground.
 
-        image: nd_array
+        frame: nd_array
             Image that background subtraction is applied.
-            If stabilizer is not defined this image is same as input image
+            If stabilizer is not defined this frame is same as input frame
 
         """
 
