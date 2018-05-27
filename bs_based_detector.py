@@ -2,11 +2,13 @@ import os
 import cv2
 import argparse
 import numpy as np
+import imutils
 
 from skimage import measure
 from datetime import datetime
 from pedestrian_tracker import *
 from detection_lib import *
+from imutils.video import VideoStream
 
 """
 Created on Tue Apr 24 17:50:19 2018
@@ -41,12 +43,12 @@ class VideoReader:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.video_capture.release()
 
-class PedestrianTracker:
+class PedestrianDetector:
 
 
-    def __init__(self, detector_folder, confidence=0.25,
+    def __init__(self, detector_folder, confidence=0.15,
                  backgroundsubtraction='mog', stabilizer='lk',
-                 morph_kernel_size=5, contour_threshold=100, box_margin=20):
+                 morph_kernel_size=5, contour_threshold=100, box_margin=100):
 
         # Create the model object by giving the name of the folder where its model exists
         self.detector = rnn_detection.RNN_Detector(detector_folder)
@@ -98,51 +100,68 @@ class PedestrianTracker:
             w = min(w + box_margin * 2, stabilized_frame.shape[1])
             h = min(h + box_margin * 2, stabilized_frame.shape[0])
 
-            # Draw the rectangles
-
-            cv2.rectangle(stabilized_frame, (x, y), (x + w, y + h), (0, 0, 255), 3)
+            # Draw the rectangles TODO: Remove
+            # cv2.rectangle(stabilized_frame, (x, y), (x + w, y + h), (0, 0, 255), 3)
 
             cropped_image = frame[y:y + h, x:x + w]
 
             # DETECTION PART
-
             for detection in self.detector.detect(cropped_image, min_score=self.confidence):
                 score = detection['score'] * 100
                 label = detection['label_name']
 
                 if label == "person":
-                    detections.append((detection['window'],score))
 
-        # filtered_detections = []
-        # for detection in detections:
-        #     child = False
-        #     for test_detection in detections:
-        #         if test_detection is not detection:
-        #             encapsulated = PedestrianTracker.encapsulates(detection[0], test_detection[0])
-        #             if encapsulated is detection[0]:
-        #                 child = True
-        #                 break
-        #     if not child:
-        #         filtered_detections.append(detection)
+                    #Adjust the coordinate of the window according to whole image
+                    det_win = detection['window']
+                    det_win = ((int(det_win[0] + x), int(det_win[1] + y),int(det_win[2] + x), int(det_win[3] + y)), score)
+
+                    detections.append(det_win)
+
+        #Combine detections
+        PedestrianDetector.combineDetectionWindows(detections)
 
         for detection in detections:
-            annotation_label = 'Ped {:.2f}%'.format(score)
+            annotation_label = 'Ped {:.2f}%'.format(detection[1])
             self.detector.annotate_image(stabilized_frame, detection[0],
-                                         label=annotation_label,
-                                         window_corner=(x, y))
-            print("Found a person with confidence {}".format(detection[1]))
+                                         label=annotation_label)
+            # print("Found a person with confidence {}".format(detection[1]))
 
         return stabilized_frame
+
+    #Combine detection windows if they intersect over a certain area percentage
+    @staticmethod
+    def combineDetectionWindows(detections):
+        det_index = 0
+        # print("Before combining boxes {}".format(len(detections)))
+        while det_index < len(detections)-1:
+            test_index = det_index+1
+
+            while test_index < len(detections):
+                # Combine the detections, None if they don't encapsulate each other
+                combination = PedestrianDetector.combine_rect(detections[det_index][0], detections[test_index][0])
+                if combination:
+                    combination = (combination, detections[det_index][1])
+                    del detections[test_index]; del detections[det_index]
+                    detections.insert(det_index,combination)
+                    det_index -= 1
+                    break
+                test_index += 1
+            det_index += 1
+
+        # print("After combining boxes {}".format(len(detections)))
+
 
     @staticmethod
     def rect_area(rect):
         return (rect[2] - rect[0]) * (rect[3] - rect[1])
 
     @staticmethod
-    def encapsulates(rect1, rect2):
+    #Returns the combination of rectangles if one encapsulates the other for certain percentage
+    def combine_rect(rect1, rect2):
 
-        r1_area = PedestrianTracker.rect_area(rect1)
-        r2_area = PedestrianTracker.rect_area(rect2)
+        r1_area = PedestrianDetector.rect_area(rect1)
+        r2_area = PedestrianDetector.rect_area(rect2)
 
         large,small = (rect1,rect2) if r1_area >= r2_area else (rect2,rect1)
 
@@ -155,12 +174,11 @@ class PedestrianTracker:
 
         if left < right \
             and top < bottom \
-            and (right - left) * (bottom - top) >= min(r1_area,r2_area) * 0.4:
+            and (right - left) * (bottom - top) >= min(r1_area,r2_area) * 0.3: #TODO: Parameter
 
-            return small
+            return (min(large[0], small[0]), min(large[1], small[1]), max(large[2], small[2]), max(large[3], small[3]))
 
         return None
-
 
 if __name__ == "__main__":
     WINDOW_NAME = 'Detection Output'
@@ -185,25 +203,36 @@ if __name__ == "__main__":
         print("Playing from default source")
 
 
+
     # Initialize and run video capture
     with VideoReader(source) as cap:
 
-        ped_tracker = PedestrianTracker('mobilenet')
+        ped_tracker = PedestrianDetector('mobilenet')
 
-        prev_time = 0
+        initiation = datetime.now().timestamp()
+        num_of_frames = 0
+        prev_time = initiation
         mean_fps = 0
-        frameNum = 0
+
+        outputFileName = "output.avi"
+        out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
+
+        writer = cv2.VideoWriter(outputFileName, cv2.VideoWriter_fourcc('M','J','P','G'),
+                                 5, (int(cap.get(3)), int(cap.get(4))))
+        print("Started writing the output to {}".format(outputFileName))
 
         while True:
 
             # Time calculation
-            cur_time = datetime.now().microsecond
+            cur_time = datetime.now().timestamp()
             time_elapsed = cur_time - prev_time  # In seconds
-            cur_fps = 1000000.0 / time_elapsed
+            cur_fps = 1 / time_elapsed
             mean_fps = mean_fps * 0.5 + cur_fps * 0.5
             prev_time = cur_time
 
+            print("Mean FPS: {}".format(mean_fps))
             success, frame = cap.read()  # Get frame from video capture
+            num_of_frames += 1
 
             # Bail out if we cannot read the frame
             if success == False:
@@ -212,19 +241,19 @@ if __name__ == "__main__":
 
             frame = ped_tracker.processImage(frame)
 
-            # Save the detection result
-            # If a person is found in the cropped frame, save the frame
-            # if found > 0:
-            #     import os
-            #
-            #     if not os.path.exists("people"):
-            #         os.makedirs("people")
-            #
-            #     file_name = "people\\f_{}-conf_{:.3f}.jpg".format(frameNum,
-            #                 confidence_sum / found)
-            #     cv2.imwrite(file_name, cropped_image)
-
-            frameNum += 1
+            cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
+                        cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
 
             cv2.imshow(WINDOW_NAME, frame)
             key = cv2.waitKey(5)
+
+            if key == 27 or key == ord('q'):
+                break
+
+            writer.write(frame)
+
+    if writer:
+        writer.release()
+
+    print("It took {} seconds for the program to process the give video with {} number of frames".format(
+        datetime.now().timestamp() - initiation, num_of_frames))

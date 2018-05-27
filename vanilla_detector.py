@@ -57,7 +57,7 @@ from datetime import datetime
 # def detect(model, img, label_map=None, input_size=(300, 300), scale=1.0 / 127.5,
 #            mean=(127.5, 127.5, 127.5), swapRB=True, crop=False, min_score=0.3):
 #     '''
-#       Performs detection on image using given model
+#       Performs detection on frame using given model
 #         This function is a generator that returns a detection for each step
 #
 #       Parameters:
@@ -69,8 +69,8 @@ from datetime import datetime
 #           input_size: Input size of the given model
 #           scale: Input scaling for model
 #           mean: Input mean for model
-#           swapRB: Whether to swap Red and Blue channels in given image
-#           crop:  Whether to crop the given image
+#           swapRB: Whether to swap Red and Blue channels in given frame
+#           crop:  Whether to crop the given frame
 #           min_score: Minimum confidence value
 #       Returns:
 #           {
@@ -81,7 +81,7 @@ from datetime import datetime
 #           }
 #
 #     '''
-#     # Set input of the model as given image
+#     # Set input of the model as given frame
 #     model.setInput(cv2.dnn.blobFromImage(img, scale, input_size, mean, swapRB=swapRB, crop=crop))
 #     out = model.forward()  # Perform forward step and get output
 #
@@ -159,11 +159,11 @@ if __name__ == "__main__":
         mean_fps = mean_fps * 0.5 + cur_fps * 0.5
         prev_time = cur_time
 
-        success, image = cap.read()  # Get image from video capture
+        success, image = cap.read()  # Get frame from video capture
 
         # Bail out if we cannot read webcam
         if success == False:
-            print('Cannot read image from source')
+            print('Cannot read frame from source')
             break
 
         # For each detection

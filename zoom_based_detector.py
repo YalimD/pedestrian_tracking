@@ -7,6 +7,21 @@ Created on Tue Apr 24 17:50:19 2018
 @coauthor: serkan
 """
 
+#How deep we must go ?
+#   expected#Detection   |    maxDepth      |    result
+#         low            |      low         |   Won't go deep, finds large pedestrians
+#         low            |      high        |   Might stop at high levels, saves time
+#         high           |      low         |   Will search for all depth, optimal
+#         high           |      high        |   Will take long, noisy results are possible
+
+#TODO: Noisy detections needs to be removed.
+#A detection is to be considered noisy if its size is inconsistent with the others and its ratio
+#is not vertical (as other pedestrians) In case of multiple pedestrians, the detection doesn't really detect multiple
+#people as a single pedestrian.
+#In HOG, the pedestrians are assumed to be in ratio of 0.5
+#Hold a gaussian for the detections so far, and label everything outside of 2std is an outlier.
+
+
 import os
 import cv2
 import argparse
@@ -36,11 +51,11 @@ class FrameGenerator:
     def next(self):
 
         while self.cap.isOpened():
-            success, image = self.cap.read()  # Get image from video capture
+            success, image = self.cap.read()  # Get frame from video capture
 
             # Bail out if we cannot read the given source
             if not success:
-                print('Cannot read image from source {}'.format(self.videoName))
+                print('Cannot read frame from source {}'.format(self.videoName))
                 raise StopIteration
             yield image
 
@@ -52,9 +67,9 @@ class FrameGenerator:
 class QuadDetectionTree:
 
     maxDepth = 2
-    minPixel = 4
+    minImage = 4
     # Min number of detections in order to stop going deeper in the tree
-    detectionThreshold = 6
+    detectionThreshold = 1
     areaPercentage = 0.75
 
     # Put model as static
@@ -103,18 +118,17 @@ class QuadDetectionTree:
                 #TODO: Why a considerable amount of noise appears on shadow areas
                 annotation_label = '{} {:.2f}%'.format(detection['label_name'], detection['score'] * 100)
                 annotate_image(self.image, detection['window'], label=annotation_label)
-                # print("Found a person with confidence {}".format(score))
+                # print("Found a person with confidence {} at {}".format(score, detection['window']))
                 confidence_sum += score
                 detections.append(detection['window']) #Need a rectangle
 
-        # print("In image with size {}x{}, detector found {} people with average confidence of {} "
-        #       .format(self.image.shape[0], self.image.shape[1], len(detections), confidence_sum / max(len(detections),1)))
+        # print("In frame with size {}x{}, detector found {} people with average confidence of {} "
+        #       .format(self.frame.shape[0], self.frame.shape[1], len(detections), confidence_sum / max(len(detections),1)))
 
-        # Create and run children if depth not reached to threshold and size of the image is not too small
-        # TODO: We may also threshold the average confidence of detected people
+        # Create and run children if depth not reached to threshold and size of the frame is not too small
         if len(detections) < QuadDetectionTree.detectionThreshold \
                 and self.depth < QuadDetectionTree.maxDepth \
-                and self.image.shape[0] * self.image.shape[1] > QuadDetectionTree.minPixel:
+                and self.image.shape[0] * self.image.shape[1] > QuadDetectionTree.minImage:
 
             row = self.image.shape[0]
             col = self.image.shape[1]
@@ -153,10 +167,11 @@ class QuadDetectionTree:
                 #Erase children who are already included in this depth's detection
                 for parent_det in detections:
                     for child in childrenDetections:
-                        #TODO: Assign a user parameter for that percentage
                         if not QuadDetectionTree.encapsulates(parent_det,child):
                             #If child is not inside of the parent
                             extra_children.append(child)
+                        else:
+                            print("A child at level {} is deleted".format(self.depth))
             detections = detections + extra_children
 
         return detections
@@ -173,8 +188,8 @@ class QuadDetectionTree:
 
 #Pseudo algo
 # for 1 to depthLimit
-#   detect ped in current image
-#   If num of detected / size of image < threshold (in contrary to classic quad)
+#   detect ped in current frame
+#   If num of detected / size of frame < threshold (in contrary to classic quad)
 #       keep the detections in this node and divide the tree
 #   Combine detection windows from children (parts of pedestrians in lower levels)
 #   (If child rect intersects with parent rect above certain % of its area, delete child)
@@ -188,18 +203,27 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
-    parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.34)
+    parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.10)
+    parser.add_argument('--maxdepth', help="Max depth of quad search tree", type=int, default=3)
+    parser.add_argument('--minImage', help="Minimum frame size to be searched", type=int, default=1000)
+    parser.add_argument('--areaPercentage',help="Percentage of the area of children to be considered as"
+                                                "inside of the parent detection", type=float, default=0.25)
+    parser.add_argument('--frameperdetection',help="Number of frames passed for each detection",
+                        type=int, default=5)
+    parser.add_argument('--minDetection', help="# of minimum detection to stop at a level",
+                        type=int, default=1)
+
     args = parser.parse_args()
 
     # Load model
-    model, label_map = read_model('mobilenet')
-    # Assign it to quadtree
-    QuadDetectionTree.assignDetector(model, label_map, args.confidence)
-    #TODO: From user
-    QuadDetectionTree.maxDepth = 4
-    QuadDetectionTree.minPixel = 2000
-    QuadDetectionTree.detectionThreshold = 6
-    QuadDetectionTree.areaPercentage = 0.25
+    detector = rnn_detection.RNN_Detector("mobilenet")
+
+    # Assign it to quadtree and adjust its parameters
+    QuadDetectionTree.assignDetector(detector.model, detector.label_map, args.confidence)
+    QuadDetectionTree.maxDepth = args.maxdepth
+    QuadDetectionTree.minImage = args.minImage
+    QuadDetectionTree.detectionThreshold = args.minDetection
+    QuadDetectionTree.areaPercentage = args.areaPercentage
 
     # Initialize video capture
     videoCap = FrameGenerator(args.source)
@@ -207,19 +231,19 @@ if __name__ == "__main__":
     prev_time = 0
     mean_fps = 0
     frameNum = 1
-    detection_per_frame = 10 #TODO: relate this to fps
+    detection_per_frame = args.frameperdetection
     for image in videoCap:
 
-        # Time calculation
+        # TODO: Correct the Time calculation
         cur_time = datetime.now().microsecond
         time_elapsed = cur_time - prev_time  # In seconds
-        cur_fps = 1000000.0 / time_elapsed
+        cur_fps = 1000000.0 / max(1, time_elapsed)
         mean_fps = mean_fps * 0.5 + cur_fps * 0.5
         prev_time = cur_time
 
         if frameNum % detection_per_frame == 0:
 
-            #Generate the quadtree from the image
+            #Generate the quadtree from the frame
             quad = QuadDetectionTree(image)
             detections = quad.processTile()
 
@@ -231,7 +255,9 @@ if __name__ == "__main__":
                         cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
 
             cv2.imshow(WINDOW_NAME, image)
-            key = cv2.waitKey(5)
+            key = cv2.waitKey(2)
+
+            #TODO: Turn this into a videowriter
             file_name = "zoomed_result\\f_{}.jpg".format(frameNum)
             cv2.imwrite(file_name, image)
 
