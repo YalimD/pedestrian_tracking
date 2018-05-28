@@ -188,7 +188,7 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
-    parser.add_argument('-o', '--output', help='Name of the output video (with detection)', default='output.mp4')
+    parser.add_argument('-o', '--output', help='Name of the output video (with detection)', default='output.avi')
     parser.add_argument('-d', '--detector', help="The detector to be used (if rnn, pass the folder containing the related"
                                                  "graph files)", default='mobilenet')
     parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.15)
@@ -220,6 +220,7 @@ if __name__ == "__main__":
 
         out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
 
+        # WARNING: For .mp4 files, requires ffmpeg (http://www.ffmpeg.org/) installed
         writer = cv2.VideoWriter(args.output, int(cap.get(cv2.CAP_PROP_FOURCC)),
                                  out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                                            int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
@@ -230,39 +231,41 @@ if __name__ == "__main__":
             print("Failed to start writing output to {}".format(args.output))
             raise IOError
 
-        while True:
+        try:
+            while True:
 
-            # Time calculation
-            cur_time = datetime.now().timestamp()
-            time_elapsed = cur_time - prev_time  # In seconds
-            cur_fps = 1 / time_elapsed
-            mean_fps = mean_fps * 0.5 + cur_fps * 0.5
-            prev_time = cur_time
+                # Time calculation
+                cur_time = datetime.now().timestamp()
+                time_elapsed = cur_time - prev_time  # In seconds
+                cur_fps = 1 / time_elapsed
+                mean_fps = mean_fps * 0.5 + cur_fps * 0.5
+                prev_time = cur_time
 
-            print("Mean FPS: {}".format(mean_fps))
-            success, frame = cap.read()  # Get frame from video capture
-            num_of_frames += 1
+                print("Mean FPS: {}".format(mean_fps))
+                success, frame = cap.read()  # Get frame from video capture
+                num_of_frames += 1
 
-            # Bail out if we cannot read the frame
-            if success == False:
-                print('Cannot read frame from source {}'.format(source))
-                break
+                # Bail out if we cannot read the frame
+                if success == False:
+                    print('Cannot read frame from source {}'.format(source))
+                    break
 
-            frame = ped_detector.processImage(frame)
+                frame = ped_detector.processImage(frame)
 
-            cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
-                        cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
+                            cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
 
-            cv2.imshow(WINDOW_NAME, frame)
-            key = cv2.waitKey(5)
+                cv2.imshow(WINDOW_NAME, frame)
+                key = cv2.waitKey(5)
 
-            if key == 27 or key == ord('q'):
-                break
+                if key == 27 or key == ord('q'):
+                    break
 
-            writer.write(frame)
+                writer.write(frame)
+        finally:
+            if writer:
+                writer.release()
 
-    if writer:
-        writer.release()
-
-    print("It took {} seconds for the program to process the give video with {} number of frames".format(
-        datetime.now().timestamp() - initiation, num_of_frames))
+            print("It took {} seconds for the program to process the output the resulting video"
+                  " with {} frames (on average {} fps )".format(
+                datetime.now().timestamp() - initiation, num_of_frames),mean_fps)
