@@ -52,12 +52,14 @@ class RNN_Detector:
         annotation_color = (23, 230, 210, 100)
         label_color = (255,255,255)
 
-        cv2.rectangle(image, (window[0],window[1]), (window[2],window[3]), window_color, thickness=2)
-        cv2.rectangle(image, (window[0] - LABEL_HORIZONTAL_MARGIN, window[1] - TOP_HEIGHT),
-                             (window[2] + LABEL_HORIZONTAL_MARGIN, window[1]),
-                             annotation_color, -1)
-        cv2.putText(image, label, (window[0], window[1] - LABEL_BOTTOM_MARGIN),
-                            cv2.FONT_HERSHEY_DUPLEX, 0.5, label_color,1,cv2.LINE_AA)
+        top_left = (int(window[0]), int(window[1]))
+        bot_right = (int(window[2]), int(window[3]))
+
+        cv2.rectangle(image, top_left, bot_right, window_color, thickness=2)
+        cv2.rectangle(image, (top_left[0], top_left[1] - TOP_HEIGHT), (bot_right[0], top_left[1]),
+                           annotation_color, -1)
+        cv2.putText(image, label, (top_left[0], top_left[1] - LABEL_BOTTOM_MARGIN),
+                         cv2.FONT_HERSHEY_DUPLEX, 0.5, label_color, 1, cv2.LINE_AA)
 
     def read_model(folder_name, model_file="graph.pbtxt", weight_file="frozen_inference_graph.pb",
                    label_file="labelmap.pbtxt"):

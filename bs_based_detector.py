@@ -6,7 +6,7 @@ import imutils
 
 from skimage import measure
 from datetime import datetime
-from pedestrian_tracker import *
+from background_subtractor import *
 from detection_lib import *
 from imutils.video import VideoStream
 
@@ -25,8 +25,6 @@ Created on Tue Apr 24 17:50:19 2018
 
 #TODO:Find the major axes of detected pedestrians using thresholding etc. (back sub ?)
 #If above fails (or doesn't work well, just use the lines in the frame to find zenith)
-#TODO: Try with different models (this must be done while we are writing)
-#TODO: Video Output
 
 class VideoReader:
     def __init__(self, source):
@@ -43,6 +41,7 @@ class VideoReader:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.video_capture.release()
 
+#TODO: Include multiple types of detectors
 class PedestrianDetector:
 
 
@@ -122,7 +121,7 @@ class PedestrianDetector:
         PedestrianDetector.combineDetectionWindows(detections)
 
         for detection in detections:
-            annotation_label = 'Ped {:.2f}%'.format(detection[1])
+            annotation_label = '{:.2f}%'.format(detection[1])
             self.detector.annotate_image(stabilized_frame, detection[0],
                                          label=annotation_label)
             # print("Found a person with confidence {}".format(detection[1]))
@@ -189,8 +188,12 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
+    parser.add_argument('-o', '--output', help='Name of the output video (with detection)', default='output.mp4')
+    parser.add_argument('-d', '--detector', help="The detector to be used (if rnn, pass the folder containing the related"
+                                                 "graph files)", default='mobilenet')
     parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.15)
     #TODO: Background subtraction and stabilization parameters needs to be added
+
     args = parser.parse_args()
 
     if (args.source and args.source != '0'):
@@ -205,21 +208,27 @@ if __name__ == "__main__":
 
 
     # Initialize and run video capture
+    # TODO: Side by side comparison of detections
     with VideoReader(source) as cap:
 
-        ped_tracker = PedestrianDetector('mobilenet')
+        ped_detector = PedestrianDetector(args.detector)
 
         initiation = datetime.now().timestamp()
         num_of_frames = 0
         prev_time = initiation
         mean_fps = 0
 
-        outputFileName = "output.avi"
         out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
 
-        writer = cv2.VideoWriter(outputFileName, cv2.VideoWriter_fourcc('M','J','P','G'),
-                                 5, (int(cap.get(3)), int(cap.get(4))))
-        print("Started writing the output to {}".format(outputFileName))
+        writer = cv2.VideoWriter(args.output, int(cap.get(cv2.CAP_PROP_FOURCC)),
+                                 out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                                           int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+
+        if writer.isOpened():
+            print("Started writing the output to {}".format(args.output))
+        else:
+            print("Failed to start writing output to {}".format(args.output))
+            raise IOError
 
         while True:
 
@@ -239,7 +248,7 @@ if __name__ == "__main__":
                 print('Cannot read frame from source {}'.format(source))
                 break
 
-            frame = ped_tracker.processImage(frame)
+            frame = ped_detector.processImage(frame)
 
             cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
                         cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)

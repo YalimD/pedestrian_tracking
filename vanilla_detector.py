@@ -132,6 +132,8 @@ if __name__ == "__main__":
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
     parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.3)
+    parser.add_argument('-d', '--detector', help="The detector to be used (if rnn, pass the folder containing the related"
+                                                 "graph files)",default="mobilenet")
     args = parser.parse_args()
 
     if (args.source and args.source != '0'):
@@ -144,7 +146,7 @@ if __name__ == "__main__":
         print("Playing from default source")
 
     # Load model
-    model, label_map = read_model('mobilenet')
+    ped_detector = rnn_detection.RNN_Detector(args.detector)
 
     # Initialize video capture
     cap = cv2.VideoCapture(source)
@@ -167,9 +169,9 @@ if __name__ == "__main__":
             break
 
         # For each detection
-        for detection in detect(model, image, label_map=label_map, min_score=args.confidence):
+        for detection in ped_detector.detect(image, min_score=args.confidence):
             annotation_label = '{} {:.2f}%'.format(detection['label_name'], detection['score'] * 100)
-            annotate_image(image, detection['window'], label=annotation_label)
+            ped_detector.annotate_image(image, detection['window'], label=annotation_label)
 
         # print('Press esc or Q to stop')
         cv2.putText(image, "FPS: {}".format(mean_fps), (10, 15),

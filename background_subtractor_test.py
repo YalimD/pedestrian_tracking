@@ -1,5 +1,5 @@
-from pedestrian_tracker.bgsegm import *
-from pedestrian_tracker.stab import *
+from background_subtractor.bgsegm import *
+from background_subtractor.stab import *
 
 import numpy as np
 import cv2

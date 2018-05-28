@@ -3,7 +3,7 @@
 
 import numpy as np
 import cv2
-from pedestrian_tracker.stab import *
+from background_subtractor.stab import *
 
 __all__ = ['BackgroundSubtractor']
 
