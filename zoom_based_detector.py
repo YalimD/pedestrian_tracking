@@ -29,7 +29,7 @@ import numpy as np
 
 from skimage import measure
 from datetime import datetime
-from detection_lib import *
+from detection_tracking_lib import *
 
 class FrameGenerator:
 

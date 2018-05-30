@@ -11,7 +11,7 @@ TODO: Check gluoncv for detection and segmentation
 import os
 import cv2
 import numpy as np
-from detection_lib import *
+from detection_tracking_lib import *
 import argparse
 from datetime import datetime
 
