@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import IntEnum
 
 import cv2
 import numpy as np
@@ -6,7 +6,7 @@ import numpy as np
 
 __all__ = ["MultiPedestrianTracker"]
 
-class TrackState(Enum):
+class TrackState(IntEnum):
     START = 1
     INACTIVE = 2
     ACTIVE = 3
@@ -38,8 +38,7 @@ class PedestrianTracker:
 
         # The associated Kalman Filter
         self.filter = None
-        self.__initializeKalmanFilter(initial_bounding_box)
-        self.predict()  # Next position of the pedestrian is predicted
+        self.__initializeKalmanFilter(initial_bounding_box) # Next position of the pedestrian is predicted
 
         if feature:
             self.correct(initial_bounding_box, feature)
@@ -70,16 +69,16 @@ class PedestrianTracker:
 
         return prediction
 
-    def correct(self, bounding_box, feature):
+    def correct(self, bounding_box, feature = None):
 
         self.detected = True
         self.correction_count += 1
         self.time_passed_since_correction = 0
 
-        self.scale_x = bounding_box.width * 0.5 + self.scale_x * 0.5
-        self.scale_y = bounding_box.height * 0.5 + self.scale_y * 0.5
+        self.scale_x = (bounding_box[2] - bounding_box[0]) * 0.5 + self.scale_x * 0.5
+        self.scale_y = (bounding_box[3] - bounding_box[1]) * 0.5 + self.scale_y * 0.5
 
-        position = PedestrianTracker.__rectCenter(bounding_box)
+        position = PedestrianTracker.getCenter(bounding_box)
 
         # (Re)activate the tracker if correction count exceeds a certain threshold
         if self.correction_count >= PedestrianTracker.TRACKER_ACTIVATE_COUNT \
@@ -89,85 +88,89 @@ class PedestrianTracker:
             self.__initializeKalmanFilter(bounding_box)
             self.predict()
 
-        measurement = [position.x, position.y]
+        measurement = np.array(position)
 
         # Update the predicted state of the kalman filter using the measurements
         self.filter.correct(measurement)
 
-        # If the tracker is active, update the visual identity
-        if self.state != TrackState.INACTIVE:
-            blend_alpha = 0.4  # TODO: Parameter ?
-            cv2.addWeighted(self.color_data, blend_alpha,
-                            feature, 1 - blend_alpha, self.color_data)
+        if feature:
+            # If the tracker is active, update the visual identity
+            if self.state != TrackState.INACTIVE:
+                blend_alpha = 0.4  # Parameter
+                cv2.addWeighted(self.color_data, blend_alpha,
+                                feature, 1 - blend_alpha, self.color_data)
 
     # Returns cost
     # Cost should be between 0 and 1
     # 0 -> means detected object probably is the tracked object
     # 1 -> means it's not
     #TODO: Feature is necessary here?
-    def cost(self, bounding_box, feature):
-        position = PedestrianTracker.__rectCenter(bounding_box)
+    def cost(self, bounding_box, feature = None):
+        position = self.getCenter(bounding_box)
         prediction = [self.filter.statePre[0], self.filter.statePre[1]]
 
-        positional_cost = np.linalg.norm(prediction - position)
+        positional_cost = np.linalg.norm(np.array(prediction) - np.array(position))
         positional_cost = 1 if positional_cost > PedestrianTracker.TRACKER_MAX_DISTANCE \
             else positional_cost / PedestrianTracker.TRACKER_MAX_DISTANCE
 
         # Distance between features in sense of pixels
-        similarity_cost = cv2.norm(feature, self.color_data, cv2.NORM_L2)
-
-        if self.state == TrackState.INACTIVE:
-            # TODO: Parameters ?
-            return similarity_cost * 0.7 + positional_cost * 0.3
-
-        return (positional_cost * PedestrianTracker.TRACKER_SCORE_MIX_RATIO) + \
-               (similarity_cost * (1.0 - PedestrianTracker.TRACKER_SCORE_MIX_RATIO))
-
-    # Returns the estimated bounding box
-    def getRect(self):
-        last_position = [self.filter.statePost[0], self.filter.statePost[1]]
-        return (last_position[0] - self.scale_x / 2,
-                last_position[1] - self.scale_y / 2,
-                self.scale_x, self.scale_y)
+        #TODO: Works on position only for now
+        if feature:
+            similarity_cost = cv2.norm(feature, self.color_data, cv2.NORM_L2)
+            if self.state == TrackState.INACTIVE:
+                # Parameter
+                return similarity_cost * 0.7 + positional_cost * 0.3
+            return (positional_cost * PedestrianTracker.TRACKER_SCORE_MIX_RATIO) + \
+                   (similarity_cost * (1.0 - PedestrianTracker.TRACKER_SCORE_MIX_RATIO))
+        return positional_cost
 
     # Returns the estimated velocity of the target
     def getVelocity(self):
         return (self.filter.satePost[2], self.filter.statePost[3])
 
     # Returns the estimated bounding box
-    def __rectCenter(self,rect):
-        last_position = (self.filter.statePost[0][0],self.filter.statePost[1][0])
-        return (last_position[0] - self.scale_x/2, last_position[1] - self.scale_y/2,
-                self.scale_x, self.scale_y)
+    def getRect(self):
+        last_position = (self.filter.statePost[0], self.filter.statePost[1])
+        return (last_position[0] - self.scale_x / 2, last_position[1] - self.scale_y / 2,
+                last_position[0] + self.scale_x / 2, last_position[1] + self.scale_y / 2)
 
+    # Returns the center of the bounding box
+    @staticmethod
+    def getCenter(rect):
+        return (rect[0] + (rect[2] - rect[0])/2, (rect[1] + (rect[3] - rect[1])/2))
 
+    #TODO: Briefly explain Kalman Filter here
     def __initializeKalmanFilter(self, initial_bounding_box):
         self.filter = cv2.KalmanFilter(4, 2, 0)
         self.filter.transitionMatrix = np.array([[1.0, 0.0, 1.0, 0.0], [0.0, 1.0, 0.0, 1.0],
                                         [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
 
-        initial_position = self.__rectCenter(initial_bounding_box)
+        initial_position = self.getCenter(initial_bounding_box)
 
-        # Init Kalman Filter
         self.filter.statePre = np.array([initial_position[0], initial_position[1], 0, 0])
         self.filter.statePost = np.array([initial_position[0], initial_position[1], 0, 0])
 
-        cv2.setIdentity(self.filter.measurementMatrix)
+        self.filter.measurementMatrix = np.array([[1.0,0.0,0.0,0.0],[0.0,1.0,0.0,0.0]])
+        # cv2.setIdentity(self.filter.measurementMatrix, 10 ** 0)
         cv2.setIdentity(self.filter.processNoiseCov, 10 ** -4)
         cv2.setIdentity(self.filter.measurementNoiseCov, 10 ** -1)
         cv2.setIdentity(self.filter.errorCovPost, 10 ** -1)
 
 
+
+
 # TODO: Should write the trackings for each frame in a out.txt
 # TODO: Should keep the trackings so far in order to return them afterwards
 # TODO: Needs to keep track of major axes and store them as as well
+# TODO: Track before detect
 class MultiPedestrianTracker:
     MULTI_TRACKER_ASSOCIATION_THRESHOLD = 0.3
 
-    def __init__(self, detector):
+    def __init__(self, detector, removeShadows):
         self.detector = detector
         self.trackers = []
         self.tracking_result = [] #TODO: Keeps the detection results
+        self.removeShadows = removeShadows
 
     def predict(self):
         for tracker in self.trackers:
@@ -175,7 +178,7 @@ class MultiPedestrianTracker:
 
     def update(self, frame):
         #Get detection ( List of detections as boxes ) Also get the stabilized frame
-        stabilized_frame, detections = self.detector.processImage(frame)
+        stabilized_frame, detections = self.detector.processImage(frame,self.removeShadows)
 
         # Used to track which  tracker/ detection
         tracker_assigned = [False for i in self.trackers]
@@ -205,7 +208,7 @@ class MultiPedestrianTracker:
                     if not detection_assigned[i]:
                         detection = detections[i]
                         for j in range(num_trackers):
-                            if not tracker_assigned[i]:
+                            if not tracker_assigned[j]:
                                 tracker = self.trackers[j]
                                 cost = tracker.cost(detection)
 
@@ -218,7 +221,7 @@ class MultiPedestrianTracker:
                                     best_tracker_index = j
 
                 # Update tracker using detection
-                if not best_detection or not best_tracker:
+                if best_detection_index == -1 or best_tracker_index == -1:
                     break
 
                 # If quality of the best detection/tracker pair is not good enough
@@ -242,8 +245,6 @@ class MultiPedestrianTracker:
             for i in range(num_detections):
                 if not detection_assigned[i]:
                     detection = detections[i]
-
-                    # TODO: Create new trackers, features are optional
                     self.trackers.append(PedestrianTracker(detection))
 
         # Step 3: Handle unassigned trackers (Remove Dead ones)
@@ -251,5 +252,13 @@ class MultiPedestrianTracker:
         # Remove dead trackers
         self.trackers = list(filter(lambda t: t.state != TrackState.DEAD, self.trackers))
 
-        #Return the stabilized frame
+        #Return the stabilized frame together with the tracked bounding boxes
         return stabilized_frame
+
+    def draw(self, frame):
+        colors = [(0,0,255),(255,0,0)]
+        for tracker in self.trackers:
+            bounding_box = tracker.getRect()
+            if tracker.state != TrackState.START:
+                print(tracker.state)
+            cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),colors[int(tracker.state) % 2])

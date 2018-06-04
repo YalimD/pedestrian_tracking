@@ -31,7 +31,7 @@ class VideoReader:
 class VideoProcessor:
 
     #TODO: should also contain bs paramteres and pass them to detector
-    def __init__(self, detector, confidence):
+    def __init__(self, detector, confidence, removeShadows = False):
 
         #Initialize Video Reader
         if args.source and args.source != '0':
@@ -46,7 +46,7 @@ class VideoProcessor:
         self.videoReader = VideoReader(source)
 
         self.detector = pedestrian_detector.PedestrianDetector(detector, confidence)
-        self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector)
+        self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, removeShadows)
 
     def processVideo(self, source, output_name):
 
@@ -98,7 +98,8 @@ class VideoProcessor:
                     #The tracker needs to ask the detector to return the detections
                     #Tracker returns the stabilized image (stablized before detection in detector)
                     frame = self.tracker.update(frame)
-                    #TODO: Draw the tracked pedestrians
+
+                    self.tracker.draw(frame)
 
                     cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
                                 cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
@@ -129,14 +130,16 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
     parser.add_argument('-o', '--output', help='Name of the output video (with detection)', default='output.mp4')
     parser.add_argument('-d', '--detector', help="The detector to be used (if rnn, pass the folder containing the related"
-                                                 "graph files)", default='mobilenet')
-    parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.15)
-    #TODO: Background subtraction and stabilization parameters needs to be added
+                                                 "graph files)", default='hog')
+    parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.2)
+    parser.add_argument('--remShad', help="Remove Shadows", const = True,
+                        default=False, nargs='?')
+    #TODO: Background subtraction, stabilization and hog parameters needs to be added
 
     args = parser.parse_args()
 
     #TODO: Side by side comparison of detections
-    videoProcessor = VideoProcessor(args.detector,args.confidence)
+    videoProcessor = VideoProcessor(args.detector,args.confidence, args.remShad)
     videoProcessor.processVideo(args.source,args.output)
 
 
