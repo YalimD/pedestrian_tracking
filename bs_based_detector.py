@@ -12,6 +12,7 @@ Created on Tue Apr 24 17:50:19 2018
 @coauthor: serkan
 """
 
+
 class VideoReader:
     def __init__(self, source):
         self.source = source
@@ -48,7 +49,7 @@ class VideoProcessor:
         self.detector = pedestrian_detector.PedestrianDetector(detector, confidence)
         self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, removeShadows)
 
-    def processVideo(self, source, output_name):
+    def processVideo(self, source, output_name, use_cv_writer = False):
 
         with self.videoReader as cap:
 
@@ -57,27 +58,44 @@ class VideoProcessor:
             prev_time = initiation
             mean_fps = 0
 
-            # Initialize Video Writer
-            out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
+            outputing_video = len(output_name) > 0
+            if outputing_video:
 
-            # WARNING: For .mp4 files, requires ffmpeg (http://www.ffmpeg.org/) installed
-            writer = cv2.VideoWriter(output_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
-                                     out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                                               int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+                if use_cv_writer:
+                    # Initialize Video Writer
+                    out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
 
-            if writer.isOpened():
-                print("Started writing the output to {}".format(args.output))
-            else:
-                print("Failed to start writing output to {}".format(args.output))
-                raise IOError
+                    # WARNING: For .mp4 files, requires ffmpeg (http://www.ffmpeg.org/) installed
+                    writer = cv2.VideoWriter(output_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
+                                             out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                                                       int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
+                    if writer.isOpened():
+                        print("Started writing the output to {}".format(args.output))
+                    else:
+                        print("Failed to start writing output to {}".format(args.output))
+                        raise IOError
+                else:
+                    import skvideo.io
+                    class VideoWriterWrapper:
+                        def __init__(self, fname):
+                            self.fname = fname
+                            self.writer = skvideo.io.FFmpegWriter(fname)
+                            
+                        def write(self, frame):
+                            self.writer.writeFrame(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+                        def release(self):
+                            self.writer.close()
+
+                    writer = VideoWriterWrapper(output_name)
             try:
                 while True:
 
                     # Time calculation
                     cur_time = datetime.now().timestamp()
                     time_elapsed = cur_time - prev_time  # In seconds
-                    cur_fps = 1 / time_elapsed
+                    cur_fps = 1 / max(0.001, time_elapsed)
                     mean_fps = mean_fps * 0.5 + cur_fps * 0.5
                     prev_time = cur_time
 
@@ -86,7 +104,7 @@ class VideoProcessor:
                     num_of_frames += 1
 
                     # Bail out if we cannot read the frame
-                    if success == False:
+                    if not success:
                         print('Cannot read frame from source {}'.format(source))
                         break
 
@@ -110,9 +128,10 @@ class VideoProcessor:
                     if key == 27 or key == ord('q'):
                         break
 
-                    writer.write(frame)
+                    if outputing_video:
+                        writer.write(frame)
             finally:
-                if writer:
+                if outputing_video and writer:
                     writer.release()
 
                 print("It took {} seconds for the program to process the output the resulting "
@@ -128,11 +147,13 @@ if __name__ == "__main__":
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
-    parser.add_argument('-o', '--output', help='Name of the output video (with detection)', default='output.mp4')
+    parser.add_argument('-o', '--output', help='Name of the output video (with detection)', default='')
     parser.add_argument('-d', '--detector', help="The detector to be used (if rnn, pass the folder containing the related"
                                                  "graph files)", default='hog')
     parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.2)
     parser.add_argument('--remShad', help="Remove Shadows", const = True,
+                        default=False, nargs='?')
+    parser.add_argument('--useCvWriter', help="Use opencv Video Writer", const=True,
                         default=False, nargs='?')
     #TODO: Background subtraction, stabilization and hog parameters needs to be added
 
@@ -140,7 +161,7 @@ if __name__ == "__main__":
 
     #TODO: Side by side comparison of detections
     videoProcessor = VideoProcessor(args.detector,args.confidence, args.remShad)
-    videoProcessor.processVideo(args.source,args.output)
+    videoProcessor.processVideo(args.source,args.output, use_cv_writer=args.useCvWriter)
 
 
 

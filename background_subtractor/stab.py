@@ -14,13 +14,13 @@ class LKVideoStabilizer:
     TODO: Documentation
     """
 
-    def __init__(self, num_points_to_track=100):
+    def __init__(self, num_points_to_track=1000):
         self.old_pyramid = None
-        self.feature_params = dict(maxCorners=num_points_to_track, qualityLevel=0.01,
-                                   minDistance=7, blockSize=7)
-        self.lk_params = dict(winSize=(15, 15),
+        self.feature_params = dict(maxCorners=num_points_to_track, qualityLevel=0.001,
+                                   minDistance=20, blockSize=7)
+        self.lk_params = dict(winSize=(11, 11),
                               maxLevel=3,
-                              criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+                              criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 20, 0.03))
 
         self.max_forward_backward_error = 0.3
 
@@ -73,7 +73,7 @@ class LKVideoStabilizer:
             new_points = new_points[status == 1]
 
             # Find old_image -> new_image homography
-            homo, _ = cv2.findHomography(old_points[:, 0, :], new_points[:, 0, :], cv2.RANSAC,5.0)
+            homo, _ = cv2.findHomography(old_points[:, 0, :], new_points[:, 0, :], cv2.RANSAC,5.0, None, 2000,0.99999)
 
             stabilized_image = image
 

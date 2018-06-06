@@ -95,7 +95,7 @@ class RNN_Detector:
         # Load model file
         label_map = RNN_Detector.generate_label_map(label_file)
         model = cv2.dnn.readNetFromTensorflow(weight_file, model_file)
-
+        model.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL)
         return model, label_map
 
     def detect(self, img, input_size=(300, 300), scale=1.0 / 127.5,

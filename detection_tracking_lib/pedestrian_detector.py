@@ -1,8 +1,8 @@
 import cv2
+import numpy as np
 
 from background_subtractor import *
 from detection_tracking_lib import *
-from shadow_remover import *
 
 __all__ = ["PedestrianDetector"]
 
@@ -37,6 +37,7 @@ class PedestrianDetector:
     def processImage(self, frame, removeShadows = False):
 
         if removeShadows:
+            from shadow_remover import ShadowRemoval
             #Shadow Removal causes HOG to have higher FP but improves RNN
             frame = ShadowRemoval.ShadowRemover.removeShadows(frame)
 
@@ -91,8 +92,7 @@ class PedestrianDetector:
                         detections.append(det_win)
                         scores.append(score)
 
-                # Combine detections
-                PedestrianDetector.combineDetectionWindowsNMS(detections,scores)
+
 
             # HOG DETECTION
             elif type(self.detector) == HogDetector:
@@ -102,7 +102,7 @@ class PedestrianDetector:
                 cropped_image = cv2.resize(cropped_image,None,None,fx=resize_cropped,fy=resize_cropped)
 
                 # Parameter
-                raw_detections, det_weights = self.detector.detector.detectMultiScale(cropped_image,
+                raw_detections, score = self.detector.detector.detectMultiScale(cropped_image,
                                                                                   hitThreshold=0,
                                                                                   winStride=(8,8),
                                                                                   padding=(8,8),
@@ -118,7 +118,10 @@ class PedestrianDetector:
                                    int(((detection[1] + detection[3]) / resize_cropped) + y))
 
                         detections.append(det_win)
-
+                    scores = np.append(scores,score)
+        # Combine detections
+        detections = PedestrianDetector.combineDetectionWindowsNMS(detections,scores)
+        # PedestrianDetector.combineDetectionWindowsGreedly(detections)
         for detection in detections:
             cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
 
@@ -154,9 +157,9 @@ class PedestrianDetector:
             temp_det.append((detection[0],detection[1],detection[2] - detection[0], detection[3] - detection[1]))
 
         # I think the nms_threshold here is the area threshold
-        indices = cv2.dnn.NMSBoxes(temp_det,scores,score_threshold=0,nms_threshold=0.5)
+        indices = cv2.dnn.NMSBoxes(temp_det,scores,score_threshold=0,nms_threshold=0.6)
 
-        detections = [temp_det[i] for i in list(map(int,list(indices)))]
+        return [detections[i] for i in list(map(int,list(indices)))]
 
     @staticmethod
     def rect_area(rect):
@@ -180,7 +183,7 @@ class PedestrianDetector:
 
         if left < right \
             and top < bottom \
-            and (right - left) * (bottom - top) >= min(r1_area,r2_area) * 0.3: # Parameter
+            and (right - left) * (bottom - top) >= min(r1_area,r2_area) * 1: # Parameter
 
             return (min(large[0], small[0]), min(large[1], small[1]), max(large[2], small[2]), max(large[3], small[3]))
 
