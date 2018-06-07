@@ -14,16 +14,17 @@ class TrackState(IntEnum):
 
 class PedestrianTracker:
     TRACKER_MAX_DISTANCE = 50
-    TRACKER_ACTIVATE_COUNT = 5
+    TRACKER_ACTIVATE_COUNT = 10
     TRACKER_DEATH_COUNT = 300
     TRACKER_INACTIVATE_COUNT = 5
-    TRACKER_SCORE_MIX_RATIO = 0.5
+    TRACKER_SCORE_MIX_RATIO = 0.8 #0.5
 
-    def __init__(self, initial_bounding_box,
+
+    def __init__(self, initial_bounding_box, id,
                  feature=None):
 
         self.detected = True
-        self.id = next(PedestrianTracker.next_id())
+        self.id = id
 
         self.time_passed_since_correction = 0
         self.correction_count = 0  # Number of times the pedestrian has been detected
@@ -42,13 +43,6 @@ class PedestrianTracker:
 
         if feature is not None:
             self.correct(initial_bounding_box, feature)
-
-    @staticmethod
-    def next_id():
-        id = 0
-        while True:
-            id += 1
-            yield id
 
     # Using Kalman Filter, predicts the next position, updates the tracker's state accordingly
     def predict(self):
@@ -91,7 +85,6 @@ class PedestrianTracker:
         measurement = np.array(position,dtype=np.float32)
 
         # Update the predicted state of the kalman filter using the measurements
-        print(measurement)
         self.filter.correct(measurement)
 
         if feature is not None:
@@ -105,7 +98,6 @@ class PedestrianTracker:
     # Cost should be between 0 and 1
     # 0 -> means detected object probably is the tracked object
     # 1 -> means it's not
-    #TODO: Feature is necessary here?
     def cost(self, bounding_box, feature = None):
         position = self.getCenter(bounding_box)
         prediction = [self.filter.statePre[0], self.filter.statePre[1]]
@@ -153,9 +145,6 @@ class PedestrianTracker:
         cv2.setIdentity(self.filter.errorCovPost, 10 ** -1)
 
 
-
-
-# TODO: Should write the trackings for each frame in a out.txt
 # TODO: Should keep the trackings so far in order to return them afterwards
 # TODO: Needs to keep track of major axes and store them as as well
 class MultiPedestrianTracker:
@@ -164,12 +153,56 @@ class MultiPedestrianTracker:
     USE_FEATURES = True
 
     def __init__(self, detector, removeShadows):
+
+        self.id_generator = MultiPedestrianTracker.next_id()
         self.detector = detector
         self.trackers = []
         self.tracking_result = [] #TODO: Keeps the detection results
         self.removeShadows = removeShadows
 
+
+    @staticmethod
+    def next_id():
+        ped_id = 0
+        while True:
+            ped_id += 1
+            yield ped_id
+
+    #Extracts the features inside the detection windows as histograms
+    @staticmethod
+    def extractFeatures(stabilized_frame, detections):
+
+        features = []
+        #For each detection window, extract features
+        for detection in detections:
+
+            t_detection = np.array(detection)
+            #Sometimes using inception, the detection window contains negative values
+            t_detection[t_detection < 0] = 0
+
+            area_OI = stabilized_frame[slice(t_detection[1],t_detection[3]),slice(t_detection[0],t_detection[2])]
+
+            #Convert the area into LAB colorspace
+            area_OI = cv2.cvtColor(area_OI,cv2.COLOR_BGR2LAB)
+
+            num_of_channels = list(range(area_OI.shape[-1]))
+            hist = []
+            for c in num_of_channels:
+                t = cv2.calcHist([area_OI], [c], None,
+                                    [MultiPedestrianTracker.HISTOGRAM_SIZE],
+                                    [0, 255])
+                cv2.normalize(t, t, 1, 0, cv2.NORM_L2)
+                hist.append(t)
+
+            hist = cv2.vconcat(hist)
+            hist = cv2.transpose(hist)
+            # cv2.normalize(hist,hist,1,0,cv2.NORM_L2)
+            features.append(hist)
+        return features
+
+
     def predict(self):
+        print(len(self.trackers))
         for tracker in self.trackers:
             tracker.predict()
 
@@ -253,10 +286,10 @@ class MultiPedestrianTracker:
             for i in range(num_detections):
                 if not detection_assigned[i]:
                     detection = detections[i]
-                    if features is not None: #TODO: To be removed
-                        self.trackers.append(PedestrianTracker(detection, features[i]))
+                    if features is not None:
+                        self.trackers.append(PedestrianTracker(detection, next(self.id_generator), features[i]))
                     else:
-                        self.trackers.append(PedestrianTracker(detection))
+                        self.trackers.append(PedestrianTracker(detection, next(self.id_generator)))
 
         # Step 3: Handle unassigned trackers (Remove Dead ones)
 
@@ -266,39 +299,27 @@ class MultiPedestrianTracker:
         #Return the stabilized frame together with the tracked bounding boxes
         return stabilized_frame
 
-    def draw(self, frame):
+    def draw_and_write_trackers(self, frame, output_file = None):
         for tracker in self.trackers:
             if tracker.state == TrackState.ACTIVE:
                 bounding_box = tracker.getRect()
                 center = tuple(map(int,PedestrianTracker.getCenter(bounding_box)))
                 velocity = list(map(int,tracker.getVelocity()))
+
                 cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),
-                              (255,0,0))
+                              (255,0,0), thickness=3)
                 cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=5)
 
-    #Extracts the features inside the detection windows as histograms
-    @staticmethod
-    def extractFeatures(stabilized_frame, detections):
+                if output_file is not None:
+                    # In append mode, write to the file if its given
+                    output_file.write("{}, {}, {}, {}, {}, {}, {},".format(tracker.id,
+                                                                           center[0],
+                                                                           center[1],
+                                                                           tracker.getVelocity()[0],
+                                                                           tracker.getVelocity()[1],
+                                                                           tracker.scale_x,
+                                                                           tracker.scale_y))
 
-        features = []
-        #For each detection window, extract features
-        for detection in detections:
-            area_OI = stabilized_frame[slice(detection[1],detection[3]),slice(detection[0],detection[2])]
 
-            #Convert the area into LAB colorspace
-            area_OI = cv2.cvtColor(area_OI,cv2.COLOR_BGR2LAB)
 
-            num_of_channels = list(range(area_OI.shape[-1]))
-            hist = []
-            for c in num_of_channels:
-                t = cv2.calcHist([area_OI], [c], None,
-                                    [MultiPedestrianTracker.HISTOGRAM_SIZE],
-                                    [0, 255])
-                cv2.normalize(t, t, 1, 0, cv2.NORM_L2)
-                hist.append(t)
-            #TODO: This is not necessary ?
-            hist = cv2.vconcat(hist)
-            hist = cv2.transpose(hist)
-            # cv2.normalize(hist,hist,1,0,cv2.NORM_L2)
-            features.append(hist)
-        return features
+

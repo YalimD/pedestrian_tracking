@@ -84,7 +84,6 @@ class PedestrianDetector:
                     label = detection['label_name']
 
                     if label == "person":
-
                         #Adjust the coordinate of the window according to whole image
                         det_win = detection['window']
                         det_win = (int(det_win[0] + x), int(det_win[1] + y), int(det_win[2] + x), int(det_win[3] + y))
@@ -122,6 +121,7 @@ class PedestrianDetector:
         # Combine detections
         detections = PedestrianDetector.combineDetectionWindowsNMS(detections,scores)
         # PedestrianDetector.combineDetectionWindowsGreedly(detections)
+
         for detection in detections:
             cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
 
