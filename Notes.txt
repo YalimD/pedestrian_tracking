@@ -1,5 +1,3 @@
-TODO:
-- Implement HOG
 
 Steps for mask:
 - Download the frozen graph (contains weights)
@@ -32,6 +30,9 @@ the number of detections, which is more crucial for our case.
  - Greedy approach just checks for intersecting areas and combines them.
  - Im not sure if the OpenCV one implements the paper: https://www.vision.ee.ethz.ch/publications/papers/proceedings/eth_biwi_01126.pdf
  The documentation is not very clear and I don't really want to read its paper
+
+ Kalman Filter:
+ -
 
  Background subtraction:
 

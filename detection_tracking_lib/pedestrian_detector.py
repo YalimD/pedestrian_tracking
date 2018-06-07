@@ -54,7 +54,7 @@ class PedestrianDetector:
         cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, opening_kernel, foreground_mask)
 
         #Draw the foreground as green
-        stabilized_frame[foreground_mask > 0, 1] = 255
+        # stabilized_frame[foreground_mask > 0, 1] = 255
 
         temp_image, contours, hierarchy = cv2.findContours(foreground_mask, cv2.RETR_EXTERNAL,
                                                            cv2.CHAIN_APPROX_TC89_KCOS)
@@ -122,8 +122,8 @@ class PedestrianDetector:
         detections = PedestrianDetector.combineDetectionWindowsNMS(detections,scores)
         # PedestrianDetector.combineDetectionWindowsGreedly(detections)
 
-        for detection in detections:
-            cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
+        # for detection in detections:
+        #     cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
 
         return stabilized_frame, detections
 

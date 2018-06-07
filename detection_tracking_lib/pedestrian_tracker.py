@@ -299,16 +299,18 @@ class MultiPedestrianTracker:
         #Return the stabilized frame together with the tracked bounding boxes
         return stabilized_frame
 
-    def draw_and_write_trackers(self, frame, output_file = None):
+    def draw_and_write_trackers(self, frame = None, output_file = None):
+
         for tracker in self.trackers:
             if tracker.state == TrackState.ACTIVE:
                 bounding_box = tracker.getRect()
                 center = tuple(map(int,PedestrianTracker.getCenter(bounding_box)))
                 velocity = list(map(int,tracker.getVelocity()))
 
-                cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),
-                              (255,0,0), thickness=3)
-                cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=5)
+                if frame is not None:
+                    cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),
+                                  (255,0,0), thickness=3)
+                    cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=5)
 
                 if output_file is not None:
                     # In append mode, write to the file if its given

@@ -69,20 +69,23 @@ class VideoProcessor:
             outputing_video = len(video_output_name) > 0
             if outputing_video:
 
+                det_v_name = "detected_" + video_output_name
+                stabilzed_v_name = "stabilized_" + video_output_name
+
                 if use_cv_writer:
-                    # Initialize Video Writer
+                    # Initialize Video Writer (s)
                     out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
 
+
                     # WARNING: For .mp4 files, requires ffmpeg (http://www.ffmpeg.org/) installed
-                    writer = cv2.VideoWriter(video_output_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
+                    detection_videowriter = cv2.VideoWriter(det_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
+                                             out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                                                       int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+                    stabilized_videowriter = cv2.VideoWriter(stabilzed_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
                                              out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                                                        int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
-                    if writer.isOpened():
-                        print("Started writing the output to {}".format(args.output))
-                    else:
-                        print("Failed to start writing output to {}".format(args.output))
-                        raise IOError
+
                 else:
                     import skvideo.io
                     class VideoWriterWrapper:
@@ -96,7 +99,19 @@ class VideoProcessor:
                         def release(self):
                             self.writer.close()
 
-                    writer = VideoWriterWrapper(video_output_name)
+                        #The writer has no attribute to check if it is created successfully
+                        def isOpened(self):
+                            return True
+
+                    detection_videowriter = VideoWriterWrapper(det_v_name)
+                    stabilized_videowriter = VideoWriterWrapper(stabilzed_v_name)
+
+                if detection_videowriter.isOpened() and stabilized_videowriter.isOpened():
+                    print("Started writing the output with detections to {}"
+                          " and stabilized only result to {}".format(det_v_name, stabilzed_v_name))
+                else:
+                    print("Failed to start writing video outputs")
+                    raise IOError
             try:
                 while True:
 
@@ -116,8 +131,6 @@ class VideoProcessor:
                         print('Cannot read frame from source {}'.format(source))
                         break
 
-                    # frame,_ = self.detector.processImage(frame)
-
                     # Predict trackers
                     self.tracker.predict()
 
@@ -125,7 +138,12 @@ class VideoProcessor:
                     # Tracker returns the stabilized image (stablized before detection in detector)
                     frame = self.tracker.update(frame)
 
+                    #Write to stabilized only video before drawing the pedestrians on it
+                    if outputing_video:
+                        stabilized_videowriter.write(frame)
+
                     text_out.write("{},".format(frameNum))
+
                     self.tracker.draw_and_write_trackers(frame, text_out)
                     text_out.write("\n")
 
@@ -139,10 +157,11 @@ class VideoProcessor:
                         break
 
                     if outputing_video:
-                        writer.write(frame)
+                        detection_videowriter.write(frame)
             finally:
-                if outputing_video and writer:
-                    writer.release()
+                if outputing_video:
+                    detection_videowriter.release()
+                    stabilized_videowriter.release()
 
                 text_out.close()
 
