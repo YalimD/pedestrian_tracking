@@ -148,7 +148,7 @@ class PedestrianTracker:
 # TODO: Should keep the trackings so far in order to return them afterwards
 # TODO: Needs to keep track of major axes and store them as as well
 class MultiPedestrianTracker:
-    MULTI_TRACKER_ASSOCIATION_THRESHOLD = 0.6
+    MULTI_TRACKER_ASSOCIATION_THRESHOLD = 0.5
     HISTOGRAM_SIZE = 16
     USE_FEATURES = True
 
@@ -206,10 +206,15 @@ class MultiPedestrianTracker:
         for tracker in self.trackers:
             tracker.predict()
 
-    def update(self, frame):
+    def update(self, frame, frameID):
+
+        mask = np.zeros((frame.shape[0], frame.shape[1]))
+        for tracker in self.trackers:
+            rect = tracker.getRect()
+            mask[int(rect[1]):int(rect[3]),int(rect[0]):int(rect[2])] = 255
 
         #Get detection ( List of detections as boxes ) Also get the stabilized frame
-        stabilized_frame, detections = self.detector.processImage(frame,self.removeShadows)
+        stabilized_frame, detections = self.detector.processImage(frame, frameID, mask, self.removeShadows)
 
         #Extract the features for all detections. Which is in this case, is the area inside of their detection boxes
         features = None
@@ -268,7 +273,7 @@ class MultiPedestrianTracker:
                     break
 
                 # Correct tracker using detection
-                if features is not None:  # TODO: To be removed
+                if features is not None:
                     best_tracker.correct(best_detection, features[best_detection_index])
                 else:
                     best_tracker.correct(best_detection)
@@ -299,7 +304,7 @@ class MultiPedestrianTracker:
         #Return the stabilized frame together with the tracked bounding boxes
         return stabilized_frame
 
-    def draw_and_write_trackers(self, frame = None, output_file = None):
+    def draw_and_write_trackers(self, frame, frameID, output_file = None):
 
         for tracker in self.trackers:
             if tracker.state == TrackState.ACTIVE:
@@ -314,13 +319,24 @@ class MultiPedestrianTracker:
 
                 if output_file is not None:
                     # In append mode, write to the file if its given
-                    output_file.write("{}, {}, {}, {}, {}, {}, {},".format(tracker.id,
-                                                                           center[0],
-                                                                           center[1],
-                                                                           tracker.getVelocity()[0],
-                                                                           tracker.getVelocity()[1],
-                                                                           tracker.scale_x,
-                                                                           tracker.scale_y))
+
+                    #OLD VERSION
+                    # output_file.write("{}, {}, {}, {}, {}, {}, {},".format(tracker.id,
+                    #                                                        center[0],
+                    #                                                        center[1],
+                    #                                                        tracker.getVelocity()[0],
+                    #                                                        tracker.getVelocity()[1],
+                    #                                                        tracker.scale_x,
+                    #                                                        tracker.scale_y))
+
+                    #NEW, EVALUATION FRIENDLY VERSION
+                    output_file.write("{},{},{},{},{},{},{},{},{},{} \n".format(frameID,
+                                                                           tracker.id,
+                                                                           bounding_box[0],
+                                                                           bounding_box[1],
+                                                                           bounding_box[2] - bounding_box[0],
+                                                                           bounding_box[3] - bounding_box[1],
+                                                                           -1,-1,-1,-1))
 
 
 

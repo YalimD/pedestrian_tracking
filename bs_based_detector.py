@@ -32,9 +32,10 @@ class VideoReader:
 class VideoProcessor:
 
     # TODO: should also contain bs paramteres and pass them to detector
-    def __init__(self, detector, confidence, removeShadows=False):
+    def __init__(self, detector, confidence, detector_output, removeShadows=False):
 
-        self.detector = pedestrian_detector.PedestrianDetector(detector, confidence)
+        self.detector = pedestrian_detector.PedestrianDetector(detector, confidence= confidence,
+                                                               det_out_name = detector_output)
         self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, removeShadows)
 
     def processVideo(self, source, text_output_name, video_output_name, use_cv_writer=False):
@@ -56,15 +57,16 @@ class VideoProcessor:
             mean_fps = 0
 
             print("Writing to {}".format(text_output_name))
-            # Initialize the output text file
+            # Initialize the output text file (clear if exists)
             open(text_output_name, "w").close()
             text_out = open(text_output_name, "a")
-            text_out.write("{} {} {} {} {} \n".format(source,
-                                                      int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                                                      int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                                                      1,
-                                                      cap.get(cv2.CAP_PROP_FPS)
-                                                      ))
+            #TODO: UNITY USES IT (FIRST LINE OF THE OLD OUTPUT)
+            # text_out.write("{} {} {} {} {} \n".format(source,
+            #                                           int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            #                                           int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+            #                                           1,
+            #                                           cap.get(cv2.CAP_PROP_FPS)
+            #                                           ))
 
             outputing_video = len(video_output_name) > 0
             if outputing_video:
@@ -122,7 +124,7 @@ class VideoProcessor:
                     mean_fps = mean_fps * 0.5 + cur_fps * 0.5
                     prev_time = cur_time
 
-                    print("Mean FPS: {}".format(mean_fps))
+                    print("Mean FPS: {} -  Frames so far: {}".format(mean_fps, frameNum))
                     success, frame = cap.read()  # Get frame from video capture
                     frameNum += 1
 
@@ -136,16 +138,16 @@ class VideoProcessor:
 
                     # The tracker needs to ask the detector to return the detections
                     # Tracker returns the stabilized image (stablized before detection in detector)
-                    frame = self.tracker.update(frame)
+                    frame = self.tracker.update(frame, frameNum)
 
                     #Write to stabilized only video before drawing the pedestrians on it
                     if outputing_video:
                         stabilized_videowriter.write(frame)
 
-                    text_out.write("{},".format(frameNum))
+                    # text_out.write("{},".format(frameNum)) TODO: UNITY USES IT
 
-                    self.tracker.draw_and_write_trackers(frame, text_out)
-                    text_out.write("\n")
+                    self.tracker.draw_and_write_trackers(frame, frameNum, text_out)
+                    # text_out.write("\n") TODO: UNITY USES IT
 
                     cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
                                 cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
@@ -164,6 +166,7 @@ class VideoProcessor:
                     stabilized_videowriter.release()
 
                 text_out.close()
+                self.detector.closeFile()
 
                 print("It took {} seconds for the program to process the output the resulting video with {} frames " \
                       "(on average {} fps )".format(datetime.now().timestamp() - initiation, frameNum, mean_fps))
@@ -179,7 +182,8 @@ if __name__ == "__main__":
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
     parser.add_argument('--v_output', help='Name of the output video (with tracking)', default='')
-    parser.add_argument('--t_output', help='Name of the output text file of trackers', default='out.txt')
+    parser.add_argument('--d_output', help='Name of the output text file of detections only', default='det_out.txt')
+    parser.add_argument('--t_output', help='Name of the output text file of trackers', default='track_out.txt')
     parser.add_argument('-d', '--detector',
                         help="The detector to be used (if rnn, pass the folder containing the related"
                              "graph files)", default='hog')
@@ -192,5 +196,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    videoProcessor = VideoProcessor(args.detector, args.confidence, args.remShad)
+    videoProcessor = VideoProcessor(args.detector, args.confidence, args.d_output, args.remShad)
     videoProcessor.processVideo(args.source, args.t_output, args.v_output, use_cv_writer=args.useCvWriter)
