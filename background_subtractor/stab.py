@@ -42,6 +42,7 @@ class LKVideoStabilizer:
         if self.old_pyramid is None:
             self.old_pyramid = new_pyramid
             self.old_image = image
+            self.first_frame = image
             return image
         else:
             # Find 'good' points to track :P
@@ -80,14 +81,15 @@ class LKVideoStabilizer:
             if homo is not None:
                 mask = cv2.warpPerspective(np.zeros_like(stabilized_image), homo,
                                            (stabilized_image.shape[1], stabilized_image.shape[0]),
-                                           flags=cv2.WARP_INVERSE_MAP, borderValue=(255, 255, 255))
+                                           flags=cv2.WARP_INVERSE_MAP| cv2.INTER_LINEAR, borderValue=(255, 255, 255))
 
                 stabilized_image = cv2.warpPerspective(stabilized_image, homo,
                                                        (stabilized_image.shape[1], stabilized_image.shape[0]),
-                                                       flags=cv2.WARP_INVERSE_MAP, borderValue=(0, 0, 0))
-
-                stabilized_image[mask > 0] = self.old_image[mask > 0]
-                pass
+                                                       flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR, borderValue=(0, 0, 0))
+                
+                mask[mask > 0] = 255
+                stabilized_image = (self.first_frame * (mask/255.0) + stabilized_image * (1 - (mask/255.0))).astype(np.uint8)
+                
 
             # FIXME: Pyramid bug
             self.old_pyramid = cv2.cvtColor(stabilized_image, cv2.COLOR_BGR2GRAY)

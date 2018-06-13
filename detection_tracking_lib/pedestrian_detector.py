@@ -11,7 +11,7 @@ class PedestrianDetector:
 
     def __init__(self, detector_folder, confidence=0.15, hogParameters = {},
                  backgroundsubtraction='mog', stabilizer='lk',
-                 morph_kernel_size=5, contour_threshold=100, box_margin=80, det_out_name = None):
+                 morph_kernel_size=5, contour_threshold=100, box_margin=100, det_out_name = None):
 
         # Create the model object by giving the name of the folder where its model exists
         if detector_folder.lower() != "hog":
@@ -37,8 +37,7 @@ class PedestrianDetector:
 
         #Create a txt file for detection results
         if det_out_name is not None:
-            open(det_out_name, "w").close()
-            self.det_output = open(det_out_name,mode="a")
+            self.det_output = open(det_out_name,mode="w")
         else:
             self.det_output = None
 
@@ -65,9 +64,10 @@ class PedestrianDetector:
         cv2.morphologyEx(foreground_mask, cv2.MORPH_CLOSE, closing_kernel, foreground_mask)
         cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, opening_kernel, foreground_mask)
 
+
         #Draw the foreground as green
-        foreground_mask[prev_mask > 0] = 1
-        stabilized_frame[foreground_mask > 0, 1] = 255
+        foreground_mask[prev_mask > 0] = 255
+        # stabilized_frame[foreground_mask > 0, 1] = 255
 
         temp_image, contours, hierarchy = cv2.findContours(foreground_mask, cv2.RETR_EXTERNAL,
                                                            cv2.CHAIN_APPROX_TC89_KCOS)
@@ -79,14 +79,17 @@ class PedestrianDetector:
         # Define bounding boxes of the contours
         for i in range(len(contours)):
             x, y, w, h = cv2.boundingRect(contours[i])
-
             box_margin = self.box_margin
             x = max(x - box_margin, 0)
             y = max(y - box_margin, 0)
             w = min(w + box_margin * 2, stabilized_frame.shape[1])
             h = min(h + box_margin * 2, stabilized_frame.shape[0])
 
-            cropped_image = frame[y:y + h, x:x + w]
+            cropped_image = stabilized_frame[y:y + h, x:x + w]
+
+            # # TODO: For all image, ?
+            # cropped_image = np.copy(stabilized_frame)
+            # x = 0; y = 0; w = stabilized_frame.shape[1]; h = stabilized_frame.shape[0]
 
             # RNN DETECTION
             if type(self.detector) == rnn_detection.RNN_Detector:
@@ -104,40 +107,33 @@ class PedestrianDetector:
                         detections.append(det_win)
                         scores.append(score)
 
-
-
             # HOG DETECTION
             elif type(self.detector) == HogDetector:
 
                 #Resize the image few times in order get a better detection
-                resize_cropped = 1 # Parameter
+                resize_cropped = 3 # Parameter
                 cropped_image = cv2.resize(cropped_image,None,None,fx=resize_cropped,fy=resize_cropped)
 
                 # Parameter
                 raw_detections, score = self.detector.detector.detectMultiScale(cropped_image,
                                                                                   hitThreshold=0,
-                                                                                  winStride=(4,4),
-                                                                                  padding=(2,2),
-                                                                                  scale=1.15,
-                                                                                  finalThreshold=1,
+                                                                                  winStride=(8,8),
+                                                                                  padding=(8,8),
+                                                                                  scale=1.2,
+                                                                                  finalThreshold=1.5,
                                                                                   useMeanshiftGrouping=False)
                 if len(raw_detections) > 0:
                     # print("HOG Detections {}".format(raw_detections))
 
                     for detection in raw_detections:
 
-                        hog_adjustment_scale = 0.3
+                        # Parameter
+                        hog_adjustment_scale = 0.1
 
                         detection[0] += (hog_adjustment_scale / 2) * detection[2]
                         detection[1] += (hog_adjustment_scale / 2) * detection[3]
                         detection[2] = (1 - hog_adjustment_scale) * detection[2]
                         detection[3] = (1 - hog_adjustment_scale) * detection[3]
-
-                        #
-                        # cv2.rectangle(cropped_image, tuple(map(int, detection[0:2])), (int(detection[0] + detection[2]), int(detection[1] + detection[3])),
-                        #               (0, 255, 255), 2)
-                        # cv2.imshow("Cropped", cropped_image)
-                        # cv2.waitKey(0)
 
 
                         det_win = (int((detection[0] / resize_cropped) + x), int((detection[1] / resize_cropped) + y),
@@ -150,8 +146,8 @@ class PedestrianDetector:
         detections = PedestrianDetector.combineDetectionWindowsNMS(detections,scores)
         # PedestrianDetector.combineDetectionWindowsGreedly(detections)
 
-        for detection in detections:
-            cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
+        # for detection in detections:
+        #     cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
 
         if self.det_output is not None:
             for detection in detections:

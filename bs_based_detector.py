@@ -57,9 +57,8 @@ class VideoProcessor:
             mean_fps = 0
 
             print("Writing to {}".format(text_output_name))
-            # Initialize the output text file (clear if exists)
-            open(text_output_name, "w").close()
-            text_out = open(text_output_name, "a")
+            # Initialize the output text file
+            text_out = open(text_output_name, "w")
             #TODO: UNITY USES IT (FIRST LINE OF THE OLD OUTPUT)
             # text_out.write("{} {} {} {} {} \n".format(source,
             #                                           int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -153,7 +152,7 @@ class VideoProcessor:
                                 cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
 
                     cv2.imshow('Detection Output', frame)
-                    key = cv2.waitKey(5)
+                    key = cv2.waitKey(1)
 
                     if key == 27 or key == ord('q'):
                         break

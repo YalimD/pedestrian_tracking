@@ -14,9 +14,9 @@ class TrackState(IntEnum):
 
 class PedestrianTracker:
     TRACKER_MAX_DISTANCE = 50
-    TRACKER_ACTIVATE_COUNT = 10
+    TRACKER_ACTIVATE_COUNT = 5
     TRACKER_DEATH_COUNT = 300
-    TRACKER_INACTIVATE_COUNT = 5
+    TRACKER_INACTIVATE_COUNT = 10
     TRACKER_SCORE_MIX_RATIO = 0.8 #0.5
 
 
@@ -148,7 +148,7 @@ class PedestrianTracker:
 # TODO: Should keep the trackings so far in order to return them afterwards
 # TODO: Needs to keep track of major axes and store them as as well
 class MultiPedestrianTracker:
-    MULTI_TRACKER_ASSOCIATION_THRESHOLD = 0.5
+    MULTI_TRACKER_ASSOCIATION_THRESHOLD = 0.4
     HISTOGRAM_SIZE = 16
     USE_FEATURES = True
 
@@ -202,7 +202,6 @@ class MultiPedestrianTracker:
 
 
     def predict(self):
-        print(len(self.trackers))
         for tracker in self.trackers:
             tracker.predict()
 
@@ -251,7 +250,7 @@ class MultiPedestrianTracker:
                         for j in range(num_trackers):
                             if not tracker_assigned[j]:
                                 tracker = self.trackers[j]
-                                if features is not None: #TODO: To be removed
+                                if features is not None:
                                     cost = tracker.cost(detection, features[i])
                                 else:
                                     cost = tracker.cost(detection)
@@ -314,8 +313,8 @@ class MultiPedestrianTracker:
 
                 if frame is not None:
                     cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),
-                                  (255,0,0), thickness=3)
-                    cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=5)
+                                  (255,0,0), thickness=1)
+                    cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=2)
 
                 if output_file is not None:
                     # In append mode, write to the file if its given
