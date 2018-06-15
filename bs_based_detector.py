@@ -38,7 +38,7 @@ class VideoProcessor:
                                                                det_out_name = detector_output)
         self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, removeShadows)
 
-    def processVideo(self, source, text_output_name, video_output_name, use_cv_writer=False):
+    def processVideo(self, source, text_output_name, video_output_name, use_sk_writer=False):
 
         # Initialize Video Reader
         if source and source != '0':
@@ -73,7 +73,7 @@ class VideoProcessor:
                 det_v_name = "detected_" + video_output_name
                 stabilzed_v_name = "stabilized_" + video_output_name
 
-                if use_cv_writer:
+                if not use_sk_writer:
                     # Initialize Video Writer (s)
                     out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
 
@@ -189,11 +189,11 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.2)
     parser.add_argument('--remShad', help="Remove Shadows", const=True,
                         default=False, nargs='?')
-    parser.add_argument('--useCvWriter', help="Use opencv Video Writer", const=True,
+    parser.add_argument('--useSkImage', help="Use skimage Video Writer", const=True,
                         default=False, nargs='?')
     # TODO: Background subtraction, stabilization and hog parameters needs to be added
 
     args = parser.parse_args()
 
     videoProcessor = VideoProcessor(args.detector, args.confidence, args.d_output, args.remShad)
-    videoProcessor.processVideo(args.source, args.t_output, args.v_output, use_cv_writer=args.useCvWriter)
+    videoProcessor.processVideo(args.source, args.t_output, args.v_output, use_sk_writer=args.useSkImage)
