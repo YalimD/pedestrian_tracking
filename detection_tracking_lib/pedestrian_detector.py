@@ -68,7 +68,7 @@ class PedestrianDetector:
         #Draw the foreground + previous mask (previous mask is used to search areas where trackers are, even if
         # there is currently no movement ) as green
         prev_mask[foreground_mask > 0] = 1
-        stabilized_frame[foreground_mask > 0, 1] = 255
+        # stabilized_frame[foreground_mask > 0, 1] = 255
 
         temp_image, contours, hierarchy = cv2.findContours(prev_mask, cv2.RETR_EXTERNAL,
                                                            cv2.CHAIN_APPROX_TC89_KCOS)

@@ -41,11 +41,12 @@ class PedestrianTracker:
         # The associated Kalman Filter
         self.filter = None
         self.__initializeKalmanFilter(initial_bounding_box) # Next position of the pedestrian is predicted
+        self.head_feet_pos = None #Unused in calculations, but written to the output file
 
         if feature is not None:
-            self.correct(initial_bounding_box, [(),()], feature)
+            self.correct(initial_bounding_box, None, feature)
 
-        self.head_feet_pos = [(),()] #Unused in calculations, but written to the output file
+
 
     # Using Kalman Filter, predicts the next position, updates the tracker's state accordingly
     def predict(self):
@@ -97,11 +98,21 @@ class PedestrianTracker:
                 cv2.addWeighted(self.color_data, blend_alpha,
                                 feature, 1 - blend_alpha,0, self.color_data)
 
-        if head_feet_pos is not None:
-            self.head_feet_pos = head_feet_pos
-        else: #If the found orientation is too noisy, consider bounding box version of head/feet; top and bottom center
-            center = self.getRect()
-            self.head_feet_pos = [(center[0], center[1] - self.scale_y / 2),(center[0], center[1] + self.scale_y / 2)]
+        # If all fails and no posture was assigned, use bounding box
+        if head_feet_pos is None and self.head_feet_pos is None:
+            new_bb = self.getRect()
+            center = list(PedestrianTracker.getCenter(new_bb))
+            center[0] -= new_bb[0]
+            center[1] -= new_bb[1]
+            self.head_feet_pos = [center[0], center[1] - self.scale_y / 2, center[0],
+                                  center[1] + self.scale_y / 2]
+        else:
+            if head_feet_pos is not None:
+                self.head_feet_pos = head_feet_pos
+            # If the found orientation is too noisy, adapt previous posture  using scale
+            ratios = [self.scale_x / (bounding_box[2] - bounding_box[0]),
+                      self.scale_y / (bounding_box[3] - bounding_box[1])]
+            self.head_feet_pos = [self.head_feet_pos[i] * ratios[i % 2] for i in range(4)]
 
     # Returns cost
     # Cost should be between 0 and 1
@@ -172,7 +183,6 @@ class MultiPedestrianTracker:
         self.removeShadows = removeShadows
 
         self.bb_file = bounding_box_file
-        self.hf_file = head_feet_file
 
 
     @staticmethod
@@ -340,8 +350,6 @@ class MultiPedestrianTracker:
         upper_threshold = tuple([sum(x) for x in zip(threshold_mean, 0*np.sqrt(threshold_variance))])
         lower_threshold = tuple([x[0] - x[1] for x in zip(threshold_mean, 2* np.sqrt(threshold_variance))])
 
-        print("{} and {} thresholds".format(upper_threshold,lower_threshold))
-
         mask = cv2.inRange(lab_detection, (lower_threshold[0],0,0), (upper_threshold[0],255,255)) | foreground_area
 
         closing_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -354,38 +362,47 @@ class MultiPedestrianTracker:
         try:
             biggest_label = np.bincount(labels.flatten())[1:].argmax() + 1
         except: #No regions found
-            return [(), ()]
+            return None
 
         labels[labels != biggest_label] = 0 #Only the biggest region
         region = measure.regionprops(labels)[0]
 
-        #Find the head and feet positions approximately
+        #Find the head and feet positions approximately ad adjust to whole image
         y0, x0 = region.centroid
-        orientation = region.orientation
-        head_x = x0 + np.cos(orientation) * 0.5 * region.major_axis_length
-        head_y = y0 - np.sin(orientation) * 0.5 * region.major_axis_length
-        feet_x = x0 - np.cos(orientation) * 0.5 * region.major_axis_length
-        feet_y = y0 + np.sin(orientation) * 0.5 * region.major_axis_length
+        orientation = np.abs(region.orientation)
+        head = [0,0]; feet = [0,0]
 
-        mask = cv2.cvtColor(mask,cv2.COLOR_GRAY2BGR)
+        head[0] = max(x0 + np.cos(orientation) * 0.5 * region.major_axis_length,0)
+        head[1] = max(y0 - np.sin(orientation) * 0.5 * region.major_axis_length,0)
+        feet[0] = min(x0 - np.cos(orientation) * 0.5 * region.major_axis_length,detection_area.shape[1])
+        feet[1] = min(y0 + np.sin(orientation) * 0.5 * region.major_axis_length,detection_area.shape[0])
 
-        cv2.circle(mask, (int(head_x), int(head_y)), 5, (0, 0, 255), -1)
-        cv2.circle(mask, (int(feet_x), int(feet_y)), 5, (0, 0, 255), -1)
+        # #TODO: Debuggign
+        # color_h = (255,0,0)
+        # color_f = (0,255,0)
 
-        #TODO: If the distance between points is below a threshold and orientation
-        #is too off, then assume previous head-feet from tracker if any. Else assign top of
-        #tracker box
-        if False:
+        #If the distance is below a threshold and orientation, centroid is too off consider it as noise
+        diagonal_distance = np.linalg.norm(np.array(best_detection[:2]) - np.array(best_detection[2:]))
+        image_center = np.array([(best_detection[0] + best_detection[2]) / 2,(best_detection[1] + best_detection[3])/2])
+        if orientation < np.pi / 3 and region.major_axis_length <  diagonal_distance * 0.2\
+                and np.linalg.norm(region.centroid - image_center) > diagonal_distance * 0.1 :
             return None
+        #
+        # #TODO: Debugging, to be deleted
+        # mask = cv2.cvtColor(mask,cv2.COLOR_GRAY2BGR)
+        #
+        # cv2.circle(mask, (int(head[0]), int(head[1])), 5, color_h, -1)
+        # cv2.circle(mask, (int(feet[0]), int(feet[1])), 5, color_f, -1)
+        #
+        # print("{} orientation and {} distance".format(orientation,region.major_axis_length))
+        #
+        # cv2.imshow("The det area in lab", lab_detection)
+        # cv2.imshow("Original detection", detection_area)
+        # cv2.imshow("The mask", mask)
+        # cv2.imshow("Foreground pixels", foreground_area)
+        # cv2.waitKey(5)
 
-
-        cv2.imshow("The det area in lab", lab_detection)
-        cv2.imshow("Original detection", detection_area)
-        cv2.imshow("The mask", mask)
-        cv2.imshow("Foreground pixels", foreground_area)
-        cv2.waitKey(0)
-
-        return [(head_x,head_y),(feet_x,feet_y)]
+        return head + feet
 
     def draw_and_write_trackers(self, frame, frameID, output_file = None):
 
@@ -394,12 +411,13 @@ class MultiPedestrianTracker:
                 bounding_box = tracker.getRect()
                 center = tuple(map(int,PedestrianTracker.getCenter(bounding_box)))
                 velocity = list(map(int,tracker.getVelocity()))
-                head_feet_pos = tracker.getHeadFeet()
+                head_feet_pos = [tracker.getHeadFeet()[i] + bounding_box[i%2] for i in range(4)]
 
                 if frame is not None:
                     cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),
                                   (255,0,0), thickness=1)
                     cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=2)
+                    cv2.line(frame, tuple(map(int,head_feet_pos[0:2])),tuple(map(int,head_feet_pos[2:])),(255,255,0), thickness=3)
 
                 if output_file is not None:
                     # In append mode, write to the file if its given
@@ -421,8 +439,8 @@ class MultiPedestrianTracker:
                                                                            bounding_box[2] - bounding_box[0],
                                                                            bounding_box[3] - bounding_box[1],
                                                                            -1,-1,
-                                                                           head_feet_pos[0][0],head_feet_pos[0][1],
-                                                                           head_feet_pos[1][0],head_feet_pos[1][1],
+                                                                           head_feet_pos[0],head_feet_pos[1],
+                                                                           head_feet_pos[2],head_feet_pos[3],
                                                                         ))
 
 
