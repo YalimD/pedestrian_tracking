@@ -65,11 +65,12 @@ class PedestrianDetector:
         cv2.morphologyEx(foreground_mask, cv2.MORPH_OPEN, opening_kernel, foreground_mask)
 
 
-        #Draw the foreground as green
-        foreground_mask[prev_mask > 0] = 255
-        # stabilized_frame[foreground_mask > 0, 1] = 255
+        #Draw the foreground + previous mask (previous mask is used to search areas where trackers are, even if
+        # there is currently no movement ) as green
+        prev_mask[foreground_mask > 0] = 1
+        stabilized_frame[foreground_mask > 0, 1] = 255
 
-        temp_image, contours, hierarchy = cv2.findContours(foreground_mask, cv2.RETR_EXTERNAL,
+        temp_image, contours, hierarchy = cv2.findContours(prev_mask, cv2.RETR_EXTERNAL,
                                                            cv2.CHAIN_APPROX_TC89_KCOS)
 
         contours = list(filter(lambda c: cv2.contourArea(c) > self.contour_threshold, contours))
@@ -87,7 +88,7 @@ class PedestrianDetector:
 
             cropped_image = stabilized_frame[y:y + h, x:x + w]
 
-            # # TODO: For all image, ?
+            # # When we apply the HOG over all of the image, process slows down significantly
             # cropped_image = np.copy(stabilized_frame)
             # x = 0; y = 0; w = stabilized_frame.shape[1]; h = stabilized_frame.shape[0]
 
@@ -146,8 +147,9 @@ class PedestrianDetector:
         detections = PedestrianDetector.combineDetectionWindowsNMS(detections,scores)
         # PedestrianDetector.combineDetectionWindowsGreedly(detections)
 
-        # for detection in detections:
-        #     cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
+        #Draw detection boxes
+        for detection in detections:
+            cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
 
         if self.det_output is not None:
             for detection in detections:
@@ -161,7 +163,8 @@ class PedestrianDetector:
                 self.det_output.write("{},{},{},{},{},{},{}\n".format(frameID, -1, bb_left, bb_top,
                                                                           bb_width, bb_height, 1))
 
-        return stabilized_frame, detections
+        #Foreground mask only contains the postures of the detected pedestrians
+        return stabilized_frame, detections, foreground_mask
 
     #Combine detection windows if they intersect over a certain area percentage
     @staticmethod
@@ -227,7 +230,7 @@ class PedestrianDetector:
 
 class HogDetector:
 
-    #TODO: Parameters
+    # Parameter
     def __init__(self, parameters = {}):
         self.detector = cv2.HOGDescriptor()
         self.detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
