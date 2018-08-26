@@ -92,8 +92,10 @@ class LKVideoStabilizer:
                 
 
             # FIXME: Pyramid bug
-            self.old_pyramid = cv2.cvtColor(stabilized_image, cv2.COLOR_BGR2GRAY)
-            self.old_image = stabilized_image
+
+            #TODO: Stabilizing according to previous frame causes screen tearing, as next frame gets continously warped away
+            # self.old_pyramid = cv2.cvtColor(stabilized_image, cv2.COLOR_BGR2GRAY)
+            # self.old_image = stabilized_image
             return stabilized_image
 
         pass

@@ -9,19 +9,18 @@ __all__ = ["PedestrianDetector"]
 class PedestrianDetector:
 
 
-    def __init__(self, detector_folder, confidence=0.15, hogParameters = {},
+    def __init__(self, detector_folder, confidence, hogParameters = {},
                  backgroundsubtraction='mog', stabilizer='lk',
                  morph_kernel_size=5, contour_threshold=100, box_margin=100, det_out_name = None):
 
         # Create the model object by giving the name of the folder where its model exists
         if detector_folder.lower() != "hog":
-            print("Using RNN ({})".format(detector_folder))
+            self.confidence = confidence
             self.detector = rnn_detection.RNN_Detector(detector_folder)
+            print("Using RNN ({},{})".format(detector_folder, self.confidence))
         else:
             print("Using HOG")
             self.detector = HogDetector(hogParameters)
-
-        self.confidence = confidence
 
         # Initialize the background subtractor
         # CNT is too noisy but can be cleared using erosion
@@ -92,6 +91,9 @@ class PedestrianDetector:
             # cropped_image = np.copy(stabilized_frame)
             # x = 0; y = 0; w = stabilized_frame.shape[1]; h = stabilized_frame.shape[0]
 
+            #TODO: For debugging, remove
+            # self.detector = None
+
             # RNN DETECTION
             if type(self.detector) == rnn_detection.RNN_Detector:
 
@@ -148,8 +150,8 @@ class PedestrianDetector:
         # PedestrianDetector.combineDetectionWindowsGreedly(detections)
 
         #Draw detection boxes
-        for detection in detections:
-            cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
+        # for detection in detections:
+        #     cv2.rectangle(stabilized_frame,tuple(map(int,detection[0:2])),tuple(map(int,detection[2:])),(0,255,255),2)
 
         if self.det_output is not None:
             for detection in detections:
@@ -167,6 +169,7 @@ class PedestrianDetector:
         return stabilized_frame, detections, foreground_mask
 
     #Combine detection windows if they intersect over a certain area percentage
+
     @staticmethod
     def combineDetectionWindowsGreedly(detections):
         det_index = 0
@@ -196,7 +199,7 @@ class PedestrianDetector:
             temp_det.append((detection[0],detection[1],detection[2] - detection[0], detection[3] - detection[1]))
 
         # I think the nms_threshold here is the area threshold
-        indices = cv2.dnn.NMSBoxes(temp_det,scores,score_threshold=0,nms_threshold=0.6)
+        indices = cv2.dnn.NMSBoxes(temp_det,scores,score_threshold=0,nms_threshold=0.3)
 
         return [detections[i] for i in list(map(int,list(indices)))]
 

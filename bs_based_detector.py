@@ -70,6 +70,7 @@ class VideoProcessor:
             outputing_video = len(video_output_name) > 0
             if outputing_video:
 
+                posture_v_name = "postures_" + video_output_name
                 det_v_name = "detected_" + video_output_name
                 stabilzed_v_name = "stabilized_" + video_output_name
 
@@ -79,9 +80,12 @@ class VideoProcessor:
 
 
                     # WARNING: For .mp4 files, requires ffmpeg (http://www.ffmpeg.org/) installed
-                    detection_videowriter = cv2.VideoWriter(det_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
+                    posture_videowriter = cv2.VideoWriter(posture_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
                                              out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                                                        int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+                    detection_videowriter = cv2.VideoWriter(det_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
+                                                            out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                                                                      int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
                     stabilized_videowriter = cv2.VideoWriter(stabilzed_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
                                              out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                                                        int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
@@ -106,10 +110,11 @@ class VideoProcessor:
 
                     detection_videowriter = VideoWriterWrapper(det_v_name)
                     stabilized_videowriter = VideoWriterWrapper(stabilzed_v_name)
+                    posture_videowriter = VideoWriterWrapper(posture_v_name)
 
                 if detection_videowriter.isOpened() and stabilized_videowriter.isOpened():
-                    print("Started writing the output with detections to {}"
-                          " and stabilized only result to {}".format(det_v_name, stabilzed_v_name))
+                    print("Started writing the postures to {}, output with detections only to {}"
+                          " and stabilized only result to {}".format(posture_v_name,det_v_name, stabilzed_v_name))
                 else:
                     print("Failed to start writing video outputs")
                     raise IOError
@@ -145,7 +150,7 @@ class VideoProcessor:
 
                     # text_out.write("{},".format(frameNum)) TODO: UNITY USES IT
 
-                    self.tracker.draw_and_write_trackers(frame, frameNum, text_out)
+                    posture_frame = self.tracker.draw_and_write_trackers(frame, frameNum, text_out)
                     # text_out.write("\n") TODO: UNITY USES IT
 
                     cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
@@ -158,6 +163,7 @@ class VideoProcessor:
                         break
 
                     if outputing_video:
+                        posture_videowriter.write(posture_frame)
                         detection_videowriter.write(frame)
             finally:
                 if outputing_video:
@@ -169,8 +175,6 @@ class VideoProcessor:
 
                 print("It took {} seconds for the program to process the output the resulting video with {} frames " \
                       "(on average {} fps )".format(datetime.now().timestamp() - initiation, frameNum, mean_fps))
-
-                # TODO: Return the detections and major axes
 
 
 if __name__ == "__main__":
@@ -186,7 +190,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--detector',
                         help="The detector to be used (if rnn, pass the folder containing the related"
                              "graph files)", default='hog')
-    parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.2)
+    parser.add_argument('-c', '--confidence', help="Detection confidence", type=float, default=0.35)
     parser.add_argument('--remShad', help="Remove Shadows", const=True,
                         default=False, nargs='?')
     parser.add_argument('--useSkImage', help="Use skimage Video Writer", const=True,

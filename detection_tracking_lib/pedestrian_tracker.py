@@ -17,7 +17,7 @@ class PedestrianTracker:
     TRACKER_MAX_DISTANCE = 50
     TRACKER_ACTIVATE_COUNT = 5
     TRACKER_DEATH_COUNT = 300
-    TRACKER_INACTIVATE_COUNT = 10
+    TRACKER_INACTIVATE_COUNT = 2
     TRACKER_SCORE_MIX_RATIO = 0.8 #0.5
 
 
@@ -108,7 +108,11 @@ class PedestrianTracker:
                                   center[1] + self.scale_y / 2]
         else:
             if head_feet_pos is not None:
-                self.head_feet_pos = head_feet_pos
+                #Don't just replace but take weighted average, change shouldn't be so wild
+                # Parameter
+                measurement_weight = 0.3
+                self.head_feet_pos = [r[0] * (1-measurement_weight) + r[1] * measurement_weight for r  in zip(self.head_feet_pos, head_feet_pos)]
+
             # If the found orientation is too noisy, adapt previous posture  using scale
             ratios = [self.scale_x / (bounding_box[2] - bounding_box[0]),
                       self.scale_y / (bounding_box[3] - bounding_box[1])]
@@ -299,7 +303,6 @@ class MultiPedestrianTracker:
                 # Use the associated detection to find the head and feet position of the pedestrian
                 # This step is done before unassigned detections are associated with trackers, in order to care only for
                 # "consistent" trackers
-                # TODO: For both detections, we may need to increase the area we are searching for. By introducing a margin
                 # Put the found values into the tracker, which will be added to the output file
                 head_feet_pos = MultiPedestrianTracker.findHeadFeetPositions(frame, f_mask, best_detection)
 
@@ -317,7 +320,6 @@ class MultiPedestrianTracker:
 
         # Step 2: Create new trackers for unassigned detections
         #         Maybe create detection only if detection has high confidence
-
         if num_detections > 0 and num_detection_assigned < num_detections:
             for i in range(num_detections):
                 if not detection_assigned[i]:
@@ -336,6 +338,8 @@ class MultiPedestrianTracker:
 
     # Finds the major axes as head and feet pos for each detection that is just associated to any tracker
     def findHeadFeetPositions(frame, f_mask, best_detection):
+
+        #TODO: Changing the brightness a little might help !
 
         detection_area = frame[best_detection[1]:best_detection[3],best_detection[0]:best_detection[2]]
         foreground_area = f_mask[best_detection[1]:best_detection[3],best_detection[0]:best_detection[2]]
@@ -367,6 +371,9 @@ class MultiPedestrianTracker:
         labels[labels != biggest_label] = 0 #Only the biggest region
         region = measure.regionprops(labels)[0]
 
+        #ICA TEST
+
+
         #Find the head and feet positions approximately ad adjust to whole image
         y0, x0 = region.centroid
         orientation = np.abs(region.orientation)
@@ -377,35 +384,80 @@ class MultiPedestrianTracker:
         feet[0] = min(x0 - np.cos(orientation) * 0.5 * region.major_axis_length,detection_area.shape[1])
         feet[1] = min(y0 + np.sin(orientation) * 0.5 * region.major_axis_length,detection_area.shape[0])
 
-        # #TODO: Debuggign
-        # color_h = (255,0,0)
-        # color_f = (0,255,0)
-
         #If the distance is below a threshold and orientation, centroid is too off consider it as noise
         diagonal_distance = np.linalg.norm(np.array(best_detection[:2]) - np.array(best_detection[2:]))
-        image_center = np.array([(best_detection[0] + best_detection[2]) / 2,(best_detection[1] + best_detection[3])/2])
-        if orientation < np.pi / 3 and region.major_axis_length <  diagonal_distance * 0.2\
-                and np.linalg.norm(region.centroid - image_center) > diagonal_distance * 0.1 :
-            return None
-        #
+        image_center = np.array([(-best_detection[1] + best_detection[3]) / 2,(-best_detection[0] + best_detection[2])/2])
+
+        #TODO: Delete this debugging code
+        fail = False
+        color_h = (255,0,0)
+        color_f = (0,255,0)
+
+        # Parameter
+        if np.rad2deg(orientation) < 60 or region.major_axis_length <  diagonal_distance * 0.15\
+                or np.linalg.norm(region.centroid - image_center) > diagonal_distance * 0.2:
+            # print("Failed case has orientation {} which is {}".format(np.rad2deg(orientation), np.rad2deg(orientation) < 60))
+            # print("Region axis length and diagonal distance {} x {} which is {}".format(region.major_axis_length, diagonal_distance * 0.2,
+            #                                                                 region.major_axis_length < diagonal_distance * 0.2))
+            # print("Cneter {} x {} which is {}".format( np.linalg.norm(region.centroid - image_center), diagonal_distance * 0.2,
+            #                                            np.linalg.norm(region.centroid - image_center) > diagonal_distance * 0.2))
+            #
+            color_h = (0, 0, 255)
+            color_f = (0, 0, 255)
+
+            fail = True
+
+
+
+            # return None
+
         # #TODO: Debugging, to be deleted
+        #
         # mask = cv2.cvtColor(mask,cv2.COLOR_GRAY2BGR)
         #
         # cv2.circle(mask, (int(head[0]), int(head[1])), 5, color_h, -1)
         # cv2.circle(mask, (int(feet[0]), int(feet[1])), 5, color_f, -1)
-        #
-        # print("{} orientation and {} distance".format(orientation,region.major_axis_length))
         #
         # cv2.imshow("The det area in lab", lab_detection)
         # cv2.imshow("Original detection", detection_area)
         # cv2.imshow("The mask", mask)
         # cv2.imshow("Foreground pixels", foreground_area)
         # cv2.waitKey(5)
+        #
+        #
+        # #Medial axis test
+        # #----------------------------------------
+        #
+        # from skimage.morphology import medial_axis
+        # import matplotlib.pyplot as plt
+        #
+        # # Compute the medial axis (skeleton) and the distance transform
+        # skel, distance = medial_axis(labels, return_distance=True)
+        #
+        # # Distance to the background for pixels of the skeleton
+        # dist_on_skel = distance * skel
+        #
+        # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4), sharex=True, sharey=True,
+        #                                subplot_kw={'adjustable': 'box-forced'})
+        # ax1.imshow(labels, cmap=plt.cm.gray, interpolation='nearest')
+        # ax1.axis('off')
+        # ax2.imshow(dist_on_skel, cmap=plt.cm.spectral, interpolation='nearest')
+        # ax2.contour(labels, [0.5], colors='w')
+        # ax2.axis('off')
+        #
+        # fig.tight_layout()
+        # plt.show()
 
+        #-----------------------------------------
+
+
+        if fail:
+            return None
         return head + feet
 
     def draw_and_write_trackers(self, frame, frameID, output_file = None):
 
+        posture_frame = np.copy(frame)
         for tracker in self.trackers:
             if tracker.state == TrackState.ACTIVE:
                 bounding_box = tracker.getRect()
@@ -416,8 +468,13 @@ class MultiPedestrianTracker:
                 if frame is not None:
                     cv2.rectangle(frame,tuple(map(int,bounding_box[0:2])),tuple(map(int,bounding_box[2:])),
                                   (255,0,0), thickness=1)
-                    cv2.arrowedLine(frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=2)
-                    cv2.line(frame, tuple(map(int,head_feet_pos[0:2])),tuple(map(int,head_feet_pos[2:])),(255,255,0), thickness=3)
+                    cv2.rectangle(posture_frame, tuple(map(int, bounding_box[0:2])), tuple(map(int, bounding_box[2:])),
+                                  (255, 0, 0), thickness=1)
+                    cv2.arrowedLine(posture_frame,center, tuple([c + v for c,v in zip(center, velocity)]),(0,0,255),3,tipLength=2)
+                    cv2.line(posture_frame, tuple(map(int,head_feet_pos[0:2])),tuple(map(int,head_feet_pos[2:])),(255,255,0), thickness=3)
+                    # print(tracker.id)
+                    cv2.putText(posture_frame, str(tracker.id), (int(bounding_box[0]), int(bounding_box[1] * 1.1)),
+                                cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
 
                 if output_file is not None:
                     # In append mode, write to the file if its given
@@ -432,7 +489,8 @@ class MultiPedestrianTracker:
                     #                                                        tracker.scale_y))
 
                     #NEW, EVALUATION FRIENDLY VERSION
-                    output_file.write("{},{},{},{},{},{},{},{},{}/{},{}/{} \n".format(frameID,
+                    #FrameID, TrackerID, ULX,ULY,WIDTH,HEIGHT,-1,-1 HEADX/HEADY,FEETX/FEETY
+                    output_file.write("{},{},{},{},{},{},{},{},{}/{},{}/{}\n".format(frameID,
                                                                            tracker.id,
                                                                            bounding_box[0],
                                                                            bounding_box[1],
@@ -444,5 +502,5 @@ class MultiPedestrianTracker:
                                                                         ))
 
 
-
+        return posture_frame
 
