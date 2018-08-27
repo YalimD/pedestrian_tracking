@@ -104,7 +104,7 @@ def main():
                     if frame_num in annotations[i]:
                         rect = annotations[i][frame_num]
                         values = (frame_num, object_id, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1])
-                        fp.write("{},{},{},{},{},{},-1,-1,-1,-1\n".format(*values))
+                        fp.write("{},{},{},{},{},{},1,-1,-1,-1\n".format(*values))
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 
@@ -19,8 +20,15 @@ class PedestrianDetector:
             self.detector = rnn_detection.RNN_Detector(detector_folder)
             print("Using RNN ({},{})".format(detector_folder, self.confidence))
         else:
+            self.confidence = 0
             print("Using HOG")
             self.detector = HogDetector(hogParameters)
+
+        # Create a new directory for the results
+        self.results_folder = "results_" + detector_folder
+        if not os.path.exists(self.results_folder):
+            os.mkdir(self.results_folder)
+        self.det_out_name = det_out_name
 
         # Initialize the background subtractor
         # CNT is too noisy but can be cleared using erosion
@@ -34,9 +42,10 @@ class PedestrianDetector:
         self.contour_threshold = contour_threshold
         self.box_margin = box_margin
 
+    def openFile(self):
         #Create a txt file for detection results
-        if det_out_name is not None:
-            self.det_output = open(det_out_name,mode="w")
+        if self.det_out_name is not None:
+            self.det_output = open(self.results_folder + self.det_out_name,mode="w")
         else:
             self.det_output = None
 

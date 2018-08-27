@@ -15,9 +15,9 @@ class TrackState(IntEnum):
 
 class PedestrianTracker:
     TRACKER_MAX_DISTANCE = 50
-    TRACKER_ACTIVATE_COUNT = 5
+    TRACKER_ACTIVATE_COUNT = 4
     TRACKER_DEATH_COUNT = 300
-    TRACKER_INACTIVATE_COUNT = 2
+    TRACKER_INACTIVATE_COUNT = 4
     TRACKER_SCORE_MIX_RATIO = 0.8 #0.5
 
 
@@ -348,22 +348,23 @@ class MultiPedestrianTracker:
 
         #Determine the threshold values from the bs result
         #Threshold values are determined as mean +- variance of values in each channel
-        threshold_mean = [np.mean(lab_detection[foreground_area > 0, i]) for i in range(3)]
-        threshold_variance = [(np.var(lab_detection[foreground_area > 0, i])) for i in range(3)]
-
-        upper_threshold = tuple([sum(x) for x in zip(threshold_mean, 0*np.sqrt(threshold_variance))])
-        lower_threshold = tuple([x[0] - x[1] for x in zip(threshold_mean, 2* np.sqrt(threshold_variance))])
-
-        mask = cv2.inRange(lab_detection, (lower_threshold[0],0,0), (upper_threshold[0],255,255)) | foreground_area
-
-        closing_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        opening_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        cv2.morphologyEx(mask, cv2.MORPH_CLOSE, closing_kernel, mask)
-        cv2.morphologyEx(mask, cv2.MORPH_OPEN, opening_kernel, mask)
-
-        #Determine the major axis of the largest blob and rotate the image to acquireit as a perpendicular line
-        labels = measure.label(mask)
         try:
+            threshold_mean = [np.mean(lab_detection[foreground_area > 0, i]) for i in range(3)]
+            threshold_variance = [(np.var(lab_detection[foreground_area > 0, i])) for i in range(3)]
+
+            upper_threshold = tuple([sum(x) for x in zip(threshold_mean, 0*np.sqrt(threshold_variance))])
+            lower_threshold = tuple([x[0] - x[1] for x in zip(threshold_mean, 2* np.sqrt(threshold_variance))])
+
+            mask = cv2.inRange(lab_detection, (lower_threshold[0],0,0), (upper_threshold[0],255,255)) | foreground_area
+
+            closing_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            opening_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            cv2.morphologyEx(mask, cv2.MORPH_CLOSE, closing_kernel, mask)
+            cv2.morphologyEx(mask, cv2.MORPH_OPEN, opening_kernel, mask)
+
+            #Determine the major axis of the largest blob and rotate the image to acquireit as a perpendicular line
+            labels = measure.label(mask)
+
             biggest_label = np.bincount(labels.flatten())[1:].argmax() + 1
         except: #No regions found
             return None
@@ -388,7 +389,7 @@ class MultiPedestrianTracker:
         diagonal_distance = np.linalg.norm(np.array(best_detection[:2]) - np.array(best_detection[2:]))
         image_center = np.array([(-best_detection[1] + best_detection[3]) / 2,(-best_detection[0] + best_detection[2])/2])
 
-        #TODO: Delete this debugging code
+        #TODO: Debugging of postures
         fail = False
         color_h = (255,0,0)
         color_f = (0,255,0)
@@ -396,6 +397,7 @@ class MultiPedestrianTracker:
         # Parameter
         if np.rad2deg(orientation) < 60 or region.major_axis_length <  diagonal_distance * 0.15\
                 or np.linalg.norm(region.centroid - image_center) > diagonal_distance * 0.2:
+
             # print("Failed case has orientation {} which is {}".format(np.rad2deg(orientation), np.rad2deg(orientation) < 60))
             # print("Region axis length and diagonal distance {} x {} which is {}".format(region.major_axis_length, diagonal_distance * 0.2,
             #                                                                 region.major_axis_length < diagonal_distance * 0.2))

@@ -1,4 +1,6 @@
+import os
 import argparse
+from os.path import basename
 from datetime import datetime
 
 from detection_tracking_lib import *
@@ -42,7 +44,8 @@ class VideoProcessor:
 
         # Initialize Video Reader
         if source and source != '0':
-            print("Playing from source {}".format(source))
+            sourceName = os.path.splitext(basename(source))[0]
+            print("Playing from file {}".format(sourceName))
             if source.isdigit():
                 source = int(source)
         else:
@@ -56,9 +59,7 @@ class VideoProcessor:
             prev_time = initiation
             mean_fps = 0
 
-            print("Writing to {}".format(text_output_name))
-            # Initialize the output text file
-            text_out = open(text_output_name, "w")
+
             #TODO: UNITY USES IT (FIRST LINE OF THE OLD OUTPUT)
             # text_out.write("{} {} {} {} {} \n".format(source,
             #                                           int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
@@ -67,12 +68,24 @@ class VideoProcessor:
             #                                           cap.get(cv2.CAP_PROP_FPS)
             #                                           ))
 
+            self.detector.results_folder = self.detector.results_folder + os.sep + sourceName + os.sep
+            if not os.path.exists(self.detector.results_folder):
+                os.mkdir(self.detector.results_folder)
+
+            # Open detector file
+            self.detector.openFile()
+
+            text_output_name = self.detector.results_folder + text_output_name
+            # Initialize the output text file
+            print("Writing to {}".format(text_output_name))
+            text_out = open(text_output_name, "w")
+
             outputing_video = len(video_output_name) > 0
             if outputing_video:
 
-                posture_v_name = "postures_" + video_output_name
-                det_v_name = "detected_" + video_output_name
-                stabilzed_v_name = "stabilized_" + video_output_name
+                posture_v_name = self.detector.results_folder + "postures_" + video_output_name
+                det_v_name = self.detector.results_folder + "detected_" + video_output_name
+                stabilzed_v_name = self.detector.results_folder + "stabilized_" + video_output_name
 
                 if not use_sk_writer:
                     # Initialize Video Writer (s)
@@ -156,7 +169,8 @@ class VideoProcessor:
                     cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
                                 cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
 
-                    cv2.imshow('Detection Output', frame)
+                    #TODO: Flag
+                    # cv2.imshow('Detection Output', frame)
                     key = cv2.waitKey(1)
 
                     if key == 27 or key == ord('q'):
@@ -170,12 +184,15 @@ class VideoProcessor:
                     detection_videowriter.release()
                     stabilized_videowriter.release()
 
+                # Also write the diagnostics to the end of the detections file
+                diag = "It took {} seconds for the program to process the output the resulting video with {} frames" \
+                       " with confidence (if applies) {}" \
+                      "(on average {} fps)".format(datetime.now().timestamp() - initiation, frameNum,
+                                                   self.detector.confidence, mean_fps)
+                self.detector.det_output.write(diag)
+
                 text_out.close()
                 self.detector.closeFile()
-
-                print("It took {} seconds for the program to process the output the resulting video with {} frames " \
-                      "(on average {} fps )".format(datetime.now().timestamp() - initiation, frameNum, mean_fps))
-
 
 if __name__ == "__main__":
     # Parse inputs
