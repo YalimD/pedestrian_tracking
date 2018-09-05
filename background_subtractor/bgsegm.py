@@ -21,7 +21,7 @@ class BackgroundSubtractor:
 
     """
 
-    def __init__(self, method, method_args={}, stabilizer=None, stabilizer_args={}):
+    def __init__(self, method, method_args={}, stabilize = True, stabilizer=None, stabilizer_args={}):
         """
         Parameters
         ----------
@@ -30,6 +30,8 @@ class BackgroundSubtractor:
 
         method_args: dict, optional
             Method specific arguments
+
+        stabilize: True if the frame needs to be stabilized before background subtraction
 
         stabilizer: VideoStablizer or string, optional
             Which stabilizer to use (see also: stab module)
@@ -60,6 +62,7 @@ class BackgroundSubtractor:
         else:
             self._stabilizer = stabilizer
 
+        self.stabilize = stabilize
         self._prev_mask = None
 
     def apply(self, image):
@@ -83,7 +86,7 @@ class BackgroundSubtractor:
 
         image = np.asarray(image)
 
-        if self._stabilizer is not None:
+        if self._stabilizer is not None and self.stabilize is True:
             image = self._stabilizer.stabilize(image, mask=self._prev_mask)
 
         mask = self._subtractor.apply(image)

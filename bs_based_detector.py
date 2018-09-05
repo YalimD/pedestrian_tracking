@@ -34,10 +34,10 @@ class VideoReader:
 class VideoProcessor:
 
     # TODO: should also contain bs paramteres and pass them to detector
-    def __init__(self, detector, confidence, detector_output, removeShadows=False):
+    def __init__(self, detector, confidence, detector_output, removeShadows=False, stabilize=True):
 
         self.detector = pedestrian_detector.PedestrianDetector(detector, confidence= confidence,
-                                                               det_out_name = detector_output)
+                                                               det_out_name = detector_output, stabilize = stabilize)
         self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, removeShadows)
 
     def processVideo(self, source, text_output_name, video_output_name, use_sk_writer=False):
@@ -212,9 +212,11 @@ if __name__ == "__main__":
                         default=False, nargs='?')
     parser.add_argument('--useSkImage', help="Use skimage Video Writer", const=True,
                         default=False, nargs='?')
+    parser.add_argument('--stab', help="Stabilize the image", const=True,
+                        default=True, nargs='?')
     # TODO: Background subtraction, stabilization and hog parameters needs to be added
 
     args = parser.parse_args()
 
-    videoProcessor = VideoProcessor(args.detector, args.confidence, args.d_output, args.remShad)
+    videoProcessor = VideoProcessor(args.detector, args.confidence, args.d_output, args.remShad, args.stab)
     videoProcessor.processVideo(args.source, args.t_output, args.v_output, use_sk_writer=args.useSkImage)

@@ -12,7 +12,7 @@ class PedestrianDetector:
 
     def __init__(self, detector_folder, confidence, hogParameters = {},
                  backgroundsubtraction='mog', stabilizer='lk',
-                 morph_kernel_size=5, contour_threshold=100, box_margin=100, det_out_name = None):
+                 morph_kernel_size=5, contour_threshold=100, box_margin=100, det_out_name = None, stabilize=True):
 
         # Create the model object by giving the name of the folder where its model exists
         if detector_folder.lower() != "hog":
@@ -36,7 +36,7 @@ class PedestrianDetector:
         # LSBP has a lot of noise
         # MOG is improved compared to the previous version
         self.backgroundSubtractor = bgsegm.BackgroundSubtractor(method=backgroundsubtraction,
-                                                                stabilizer=stabilizer)
+                                                                stabilize = stabilize , stabilizer=stabilizer)
 
         self.morph_kernel_size = morph_kernel_size
         self.contour_threshold = contour_threshold
@@ -100,7 +100,7 @@ class PedestrianDetector:
             # cropped_image = np.copy(stabilized_frame)
             # x = 0; y = 0; w = stabilized_frame.shape[1]; h = stabilized_frame.shape[0]
 
-            #TODO: For debugging, remove
+            # For stabilized only video , ignore otherwise
             # self.detector = None
 
             # RNN DETECTION
