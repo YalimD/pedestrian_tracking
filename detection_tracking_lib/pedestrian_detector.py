@@ -78,7 +78,7 @@ class PedestrianDetector:
         prev_mask[foreground_mask > 0] = 1
         # stabilized_frame[foreground_mask > 0, 1] = 255
 
-        temp_image, contours, hierarchy = cv2.findContours(prev_mask, cv2.RETR_EXTERNAL,
+        contours, hierarchy = cv2.findContours(prev_mask, cv2.RETR_EXTERNAL,
                                                            cv2.CHAIN_APPROX_TC89_KCOS)
 
         contours = list(filter(lambda c: cv2.contourArea(c) > self.contour_threshold, contours))

@@ -179,6 +179,8 @@ class VideoProcessor:
                     if outputing_video:
                         posture_videowriter.write(posture_frame)
                         detection_videowriter.write(frame)
+            except KeyboardInterrupt:
+                print("Interrupted, saving videos...")
             finally:
                 if outputing_video:
                     detection_videowriter.release()
@@ -213,8 +215,8 @@ if __name__ == "__main__":
     parser.add_argument('--useSkImage', help="Use skimage Video Writer", const=True,
                         default=False, nargs='?')
     parser.add_argument('--stab', help="Stabilize the image", const=True,
-                        default=True, nargs='?')
-    # TODO: Background subtraction, stabilization and hog parameters needs to be added
+                        default=False, nargs='?')
+    # TODO: Background subtraction, hog parameters needs to be added
 
     args = parser.parse_args()
 

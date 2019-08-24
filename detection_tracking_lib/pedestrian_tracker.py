@@ -337,6 +337,7 @@ class MultiPedestrianTracker:
         return stabilized_frame
 
     # Finds the major axes as head and feet pos for each detection that is just associated to any tracker
+    @staticmethod
     def findHeadFeetPositions(frame, f_mask, best_detection):
 
         #TODO: Changing the brightness a little might help !
@@ -344,7 +345,10 @@ class MultiPedestrianTracker:
         detection_area = frame[best_detection[1]:best_detection[3],best_detection[0]:best_detection[2]]
         foreground_area = f_mask[best_detection[1]:best_detection[3],best_detection[0]:best_detection[2]]
 
-        lab_detection = cv2.cvtColor(detection_area,cv2.COLOR_BGR2LAB)
+        if detection_area.size == 0:
+            return None
+
+        lab_detection = cv2.cvtColor(detection_area, cv2.COLOR_BGR2LAB)
 
         #Determine the threshold values from the bs result
         #Threshold values are determined as mean +- variance of values in each channel
@@ -409,10 +413,6 @@ class MultiPedestrianTracker:
 
             fail = True
 
-
-
-            # return None
-
         # #TODO: Debugging, to be deleted
         #
         # mask = cv2.cvtColor(mask,cv2.COLOR_GRAY2BGR)
@@ -424,8 +424,8 @@ class MultiPedestrianTracker:
         # cv2.imshow("Original detection", detection_area)
         # cv2.imshow("The mask", mask)
         # cv2.imshow("Foreground pixels", foreground_area)
-        # cv2.waitKey(5)
-        #
+        # cv2.waitKey(0)
+
         #
         # #Medial axis test
         # #----------------------------------------
