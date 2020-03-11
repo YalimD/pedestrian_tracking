@@ -9,7 +9,6 @@ Created on Tue Apr 24 18:08:23 2018
 import re
 import os
 import cv2
-import numpy as np
 
 __all__ = ["RNN_Detector"]
 
@@ -47,7 +46,7 @@ class RNN_Detector:
         '''
         TOP_HEIGHT = 20
         LABEL_BOTTOM_MARGIN = 5
-        LABEL_HORIZONTAL_MARGIN = 1;
+        LABEL_HORIZONTAL_MARGIN = 1
         window_color = (23, 230, 210)
         annotation_color = (23, 230, 210, 100)
         label_color = (255,255,255)
@@ -95,7 +94,14 @@ class RNN_Detector:
         # Load model file
         label_map = RNN_Detector.generate_label_map(label_file)
         model = cv2.dnn.readNetFromTensorflow(weight_file, model_file)
+
+        #TODO: Requires CUDA compiled OpenCV
+        # model.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+        # model.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+
+        # Works anyway but slow
         model.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL)
+
         return model, label_map
 
     def detect(self, img, input_size=(300, 300), scale=1.0 / 127.5,
@@ -123,10 +129,15 @@ class RNN_Detector:
                   'label_name' : Name of the label assigned for detection (Same as label_id when label_map is not defined)
                   'score' : Confidence score of the detection
               }
-
         '''
         # Set input of the model as given frame
         self.model.setInput(cv2.dnn.blobFromImage(img, scale, input_size, mean, swapRB=swapRB, crop=crop))
+
+        #TODO: Requires CUDA compiled OpenCV
+        # self.model.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+        # self.model.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
+
+        # Works anyway but slow
         self.model.setPreferableTarget(cv2.dnn.DNN_TARGET_OPENCL)
         out = self.model.forward()  # Perform forward step and get output
 

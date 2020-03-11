@@ -1,11 +1,11 @@
-import os
 import argparse
-from os.path import basename
+import os
 from datetime import datetime
-
-from detection_tracking_lib import *
+from os.path import basename
 
 import cv2
+
+from detection_tracking_lib import *
 
 """
 Created on Tue Apr 24 17:50:19 2018
@@ -13,7 +13,6 @@ Created on Tue Apr 24 17:50:19 2018
 @author: yalim
 @coauthor: serkan
 """
-
 
 class VideoReader:
     def __init__(self, source):
@@ -33,23 +32,24 @@ class VideoReader:
 
 class VideoProcessor:
 
-    # TODO: should also contain bs paramteres and pass them to detector
-    def __init__(self, detector, confidence, detector_output, removeShadows=False, stabilize=True):
+    # TODO: should also contain bs parameters and pass them to detector
+    def __init__(self, detector, confidence, detector_output, remove_shadows=False, stabilize=True):
 
         self.detector = pedestrian_detector.PedestrianDetector(detector, confidence= confidence,
                                                                det_out_name = detector_output, stabilize = stabilize)
-        self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, removeShadows)
+        self.tracker = pedestrian_tracker.MultiPedestrianTracker(self.detector, remove_shadows)
 
-    def processVideo(self, source, text_output_name, video_output_name, use_sk_writer=False):
+    def process_video(self, source, results_folder, text_output_name, video_output_name, use_sk_writer=False):
 
         # Initialize Video Reader
         if source and source != '0':
-            sourceName = os.path.splitext(basename(source))[0]
-            print("Playing from file {}".format(sourceName))
+            source_name = os.path.splitext(basename(source))[0]
+            print("Playing from file {}".format(source_name))
             if source.isdigit():
                 source = int(source)
         else:
             source = 0
+            source_name = "camera"
             print("Playing from default source")
 
         with VideoReader(source) as cap:
@@ -59,23 +59,16 @@ class VideoProcessor:
             prev_time = initiation
             mean_fps = 0
 
+            if len(results_folder) == 0:
+                results_folder = os.path.join(os.path.dirname(source), "results_{}".format(source_name))
 
-            #TODO: UNITY USES IT (FIRST LINE OF THE OLD OUTPUT)
-            # text_out.write("{} {} {} {} {} \n".format(source,
-            #                                           int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-            #                                           int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            #                                           1,
-            #                                           cap.get(cv2.CAP_PROP_FPS)
-            #                                           ))
-
-            self.detector.results_folder = self.detector.results_folder + os.sep + sourceName + os.sep
-            if not os.path.exists(self.detector.results_folder):
-                os.mkdir(self.detector.results_folder)
+            if not os.path.exists(results_folder):
+                os.mkdir(results_folder)
 
             # Open detector file
-            self.detector.openFile()
+            self.detector.openFile(results_folder)
 
-            text_output_name = self.detector.results_folder + text_output_name
+            text_output_name = results_folder + text_output_name
             # Initialize the output text file
             print("Writing to {}".format(text_output_name))
             text_out = open(text_output_name, "w")
@@ -83,14 +76,13 @@ class VideoProcessor:
             outputing_video = len(video_output_name) > 0
             if outputing_video:
 
-                posture_v_name = self.detector.results_folder + "postures_" + video_output_name
-                det_v_name = self.detector.results_folder + "detected_" + video_output_name
-                stabilzed_v_name = self.detector.results_folder + "stabilized_" + video_output_name
+                posture_v_name = results_folder + "postures_" + video_output_name
+                det_v_name = results_folder + "detected_" + video_output_name
+                stabilzed_v_name = results_folder + "stabilized_" + video_output_name
 
                 if not use_sk_writer:
                     # Initialize Video Writer (s)
                     out_fps = 30 if (source == 0) else cap.get(cv2.CAP_PROP_FPS)
-
 
                     # WARNING: For .mp4 files, requires ffmpeg (http://www.ffmpeg.org/) installed
                     posture_videowriter = cv2.VideoWriter(posture_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
@@ -102,7 +94,6 @@ class VideoProcessor:
                     stabilized_videowriter = cv2.VideoWriter(stabilzed_v_name, int(cap.get(cv2.CAP_PROP_FOURCC)),
                                              out_fps, (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
                                                        int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-
 
                 else:
                     import skvideo.io
@@ -161,10 +152,7 @@ class VideoProcessor:
                     if outputing_video:
                         stabilized_videowriter.write(frame)
 
-                    # text_out.write("{},".format(frameNum)) TODO: UNITY USES IT
-
                     posture_frame = self.tracker.draw_and_write_trackers(frame, frameNum, text_out)
-                    # text_out.write("\n") TODO: UNITY USES IT
 
                     cv2.putText(frame, "FPS: {:.2f}".format(mean_fps), (10, 15),
                                 cv2.FONT_HERSHEY_DUPLEX, 0.5, (100, 255, 255), 1, cv2.LINE_AA)
@@ -196,13 +184,16 @@ class VideoProcessor:
                 text_out.close()
                 self.detector.closeFile()
 
+
 if __name__ == "__main__":
+
     # Parse inputs
     parser = argparse.ArgumentParser(
         description="Runs model",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument('-s', '--source', help="Source of the video", default='0')
+    parser.add_argument('-o', '--output_folder', help="Output folder for the results", default='')
     parser.add_argument('--v_output', help='Name of the output video (with tracking)', default='')
     parser.add_argument('--d_output', help='Name of the output text file of detections only', default='det_out.txt')
     parser.add_argument('--t_output', help='Name of the output text file of trackers', default='track_out.txt')
@@ -221,4 +212,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     videoProcessor = VideoProcessor(args.detector, args.confidence, args.d_output, args.remShad, args.stab)
-    videoProcessor.processVideo(args.source, args.t_output, args.v_output, use_sk_writer=args.useSkImage)
+    videoProcessor.process_video(args.source, args.output_folder, args.t_output, args.v_output, args.useSkImage)

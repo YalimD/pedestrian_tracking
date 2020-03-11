@@ -1,11 +1,11 @@
 from enum import IntEnum
-from skimage import measure
 
 import cv2
 import numpy as np
-
+from skimage import measure
 
 __all__ = ["MultiPedestrianTracker"]
+
 
 class TrackState(IntEnum):
     START = 1

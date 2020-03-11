@@ -1,4 +1,4 @@
-"""Provides Background-Forgeround segmentation routines
+"""Provides Background-Foreground segmentation routines
 """
 
 import numpy as np
