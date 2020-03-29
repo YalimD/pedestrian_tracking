@@ -1,10 +1,8 @@
-import os
-
 import cv2
-import numpy as np
 
 from background_subtractor import *
 from detection_tracking_lib import *
+from shadow_remover.shadow_remover import *
 
 __all__ = ["PedestrianDetector"]
 
@@ -56,9 +54,8 @@ class PedestrianDetector:
     def processImage(self, frame, frameID, prev_mask, removeShadows=False):
 
         if removeShadows:
-            from shadow_remover import ShadowRemoval
             # Shadow Removal causes HOG to have higher FP but improves RNN
-            frame = ShadowRemoval.ShadowRemover.removeShadows(frame)
+            frame = ShadowRemover.remove_shadows(frame)
 
         # Apply the read frame to the background subtractor and obtain foreground mask and the stabilized frame
         foreground_mask, stabilized_frame = self.backgroundSubtractor.apply(frame)
@@ -240,6 +237,6 @@ class PedestrianDetector:
 class HogDetector:
 
     # Parameter
-    def __init__(self, parameters = {}):
+    def __init__(self, parameters={}):
         self.detector = cv2.HOGDescriptor()
         self.detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
