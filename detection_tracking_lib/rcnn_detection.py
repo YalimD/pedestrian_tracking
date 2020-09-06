@@ -10,12 +10,12 @@ import re
 import os
 import cv2
 
-__all__ = ["RNN_Detector"]
+__all__ = ["RCNN_Detector"]
 
-class RNN_Detector:
+class RCNN_Detector:
 
     def __init__(self, folder_name):
-        self.model, self.label_map = RNN_Detector.read_model(folder_name)
+        self.model, self.label_map = RCNN_Detector.read_model(folder_name)
 
     def generate_label_map(fname):
         '''
@@ -92,7 +92,7 @@ class RNN_Detector:
         label_file = os.path.join(folder_name, label_file)
 
         # Load model file
-        label_map = RNN_Detector.generate_label_map(label_file)
+        label_map = RCNN_Detector.generate_label_map(label_file)
         model = cv2.dnn.readNetFromTensorflow(weight_file, model_file)
 
         #TODO: Requires CUDA compiled OpenCV

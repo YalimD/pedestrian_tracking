@@ -17,9 +17,9 @@ class PedestrianDetector:
         # Create the model object by giving the name of the folder where its model exists
         if detector_folder.lower() != "hog":
             self.confidence = confidence
-            self.detector = rnn_detection.RNN_Detector(detector_folder)
+            self.detector = rcnn_detection.RCNN_Detector(detector_folder)
             self.detector_name = detector_folder
-            print("Using RNN ({},{})".format(detector_folder, self.confidence))
+            print("Using RCNN ({},{})".format(detector_folder, self.confidence))
         else:
             self.confidence = 0
             self.detector = HogDetector(hogParameters)
@@ -54,7 +54,7 @@ class PedestrianDetector:
     def processImage(self, frame, frameID, prev_mask, removeShadows=False):
 
         if removeShadows:
-            # Shadow Removal causes HOG to have higher FP but improves RNN
+            # Shadow Removal causes HOG to have higher FP but improves RCNN
             frame = ShadowRemover.remove_shadows(frame)
 
         # Apply the read frame to the background subtractor and obtain foreground mask and the stabilized frame
@@ -99,8 +99,8 @@ class PedestrianDetector:
             # For stabilized only video , ignore otherwise
             # self.detector = None
 
-            # RNN DETECTION
-            if type(self.detector) == rnn_detection.RNN_Detector:
+            # RCNN DETECTION
+            if type(self.detector) == rcnn_detection.RCNN_Detector:
 
                 for detection in self.detector.detect(cropped_image, min_score=self.confidence):
                     score = detection['score'] * 100
